@@ -1,6 +1,6 @@
 # Product image provenance
 
-These five PNGs show the unmodified AirloBot 0.7 production renderer with fixed synthetic content. Conversation text, task results, project paths, hardware descriptions, model inventory, and connection status are demo fixtures. They do not claim a live model interaction or expose a user's saved state.
+These six PNGs show the unmodified AirloBot 0.8 production renderer with fixed synthetic content. Conversation text, task results, project paths, hardware descriptions, model inventory, popularity counts, dates, and connection status are demo fixtures. They do not claim a live model interaction or expose a user's saved state.
 
 | Image | View |
 | --- | --- |
@@ -9,6 +9,7 @@ These five PNGs show the unmodified AirloBot 0.7 production renderer with fixed 
 | `library-light.png` | Example local-model inventory in Light. |
 | `appearance-glass.png` | Appearance options and accessibility controls. |
 | `library-downloads.png` | Download chooser and estimated memory fit using synthetic hardware. |
+| `library-search.png` | Search metrics, per-file size range, and checked memory guidance. |
 
 Recreate from the repository root:
 
@@ -17,8 +18,9 @@ npm run build
 npx --no-install electron scripts/capture-readme.cjs
 npx --no-install electron scripts/library-ui-test.cjs
 Copy-Item test-results/library-ui/chooser-dark.png docs/media/library-downloads.png
+Copy-Item test-results/library-ui/search-dark.png docs/media/library-search.png
 ```
 
 The capture process uses its own ignored test profile, reads only the built app assets, and blocks every external network request. It does not read `data`, start an inference engine, or perform project file changes. No screenshot is taken from the user's running desktop app.
 
-Before publishing regenerated images, inspect all five for layout and unintended content. Do not replace these images with real chats, hardware profiles, local file paths, credentials, or personal project screenshots. Other private captures remain ignored by Git.
+Before publishing regenerated images, inspect all six for layout and unintended content. Do not replace these images with real chats, hardware profiles, local file paths, credentials, or personal project screenshots. Other private captures remain ignored by Git.

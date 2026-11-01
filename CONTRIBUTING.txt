@@ -90,3 +90,8 @@ Optional hardware smoke test (prints only validation outcomes):
 Add --hub only when explicitly testing a small public model download. All live
 test state remains in ignored test-results. Never commit real device reports.
 Snapshots must remain outside persisted app state and outbound Hub requests.
+
+v0.8.0: Catalog popularity/update/file-size metrics, page-level memory comparison,
+visible device guidance, checked variant suggestions, and Settings category panels.
+The library UI test covers category draft retention and all three themes; captures
+force a repaint before saving. All fixtures and product images remain synthetic.

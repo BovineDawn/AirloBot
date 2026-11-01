@@ -7,7 +7,7 @@
 <p align="center"><strong>An agent workspace powered by your local models.</strong></p>
 
 <p align="center">
-  Windows desktop · Local inference · Version 0.7 preview
+  Windows desktop · Local inference · Version 0.8 preview
 </p>
 
 <p align="center">
@@ -94,9 +94,13 @@ Task results stay in the main workspace. Open **Review changes** to see the chan
 
 Add an existing GGUF or find a public model on Hugging Face. AirloBot loads files directly and verifies downloads before adding them to the library. The library currently supports public, ungated, single-file GGUF models.
 
-Enable **Settings → Device & model fit → Use my hardware for model recommendations**, then choose **Scan now**. The library shows a few starting variants and keeps **All versions** available. Selecting a variant reads a bounded metadata preview before download. Fit labels are memory estimates, not speed or model-quality guarantees; incomplete metadata and unmodeled architectures show **Unknown**.
+Enable **Settings → Models & hardware → Use my hardware for model recommendations**, then choose **Scan now**. The library shows a few starting variants and keeps **All versions** available. Selecting a variant reads a bounded metadata preview before download. Fit labels are memory estimates, not speed or model-quality guarantees; incomplete metadata and unmodeled architectures receive limited, clearly labeled weight-only guidance.
 
-Snapshots expire for comparisons after 15 minutes, are never saved to disk or sent to Hugging Face, and clear on **Forget results**, opt-out, or app shutdown. Existing GGUFs retain their locations. Older library entries offer **Model details → Check model requirements** to read their metadata locally.
+Snapshots expire for comparisons after 15 minutes, are never saved to disk or sent to Hugging Face, and clear on **Forget results**, opt-out, or app shutdown. Existing GGUFs retain their locations. Older library entries offer **Check model requirements** to read their metadata locally.
+
+Search results show monthly repository downloads, community likes, the repository update date, and the range of supported single-file download sizes. Use **Compare memory fit** to check starting versions on the current page. The version chooser suggests a checked option with comfortable memory headroom when available. Popularity is not a speed or quality score.
+
+![Search results with popularity, file sizes, update dates, and checked memory fit using synthetic data](docs/media/library-search.png)
 
 ![Model download choices with a local memory-fit estimate, using synthetic model and hardware data](docs/media/library-downloads.png)
 
@@ -123,7 +127,7 @@ The bundled engine has remote access, built-in agent tools, request logging, and
 
 ## Current scope
 
-AirloBot 0.7 supports local text chat, persistent project conversations, folder creation, and reviewed UTF-8 text/Markdown/source edits up to 1 MiB. Helpers run sequentially, with up to two helpers per turn. New turns default to **100 shared model turns and 60 minutes**, both configurable. Word/PDF editing, terminal commands, project test execution, and autonomous writes are not available.
+AirloBot 0.8 supports local text chat, persistent project conversations, folder creation, and reviewed UTF-8 text/Markdown/source edits up to 1 MiB. Helpers run sequentially, with up to two helpers per turn. New turns default to **100 shared model turns and 60 minutes**, both configurable. Word/PDF editing, terminal commands, project test execution, and autonomous writes are not available.
 
 The app is tested on Windows. CI checks the service and production build on Windows and Linux; this does not imply a supported Linux desktop release. See the [user guide](docs/USER_GUIDE.md) for model requirements, exact limits, and troubleshooting.
 
