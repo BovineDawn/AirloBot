@@ -43,7 +43,7 @@ app.whenReady().then(async () => {
   const { DEFAULT_SETTINGS } = await import(require('node:url').pathToFileURL(path.join(root, 'electron/core.mjs')).href);
   const task = {
     id: 'demo-review', goal: 'Review the welcome message and propose a clearer next step.', project,
-    model: 'demo-gemma', status: 'completed', turns: 9, steps: 18,
+    model: 'demo-gemma', status: 'awaiting_review', turns: 9, steps: 18,
     budget: { maxTurns: 100, maxMinutes: 60 }, updatedAt: '2026-11-01T12:00:00Z',
     result: 'I reviewed the welcome screen with a reviewer helper. The message tells people to open the app, even though they are already in it.\n\n### A clearer first step\n\nReplace **“Open the app”** with **“Choose a project to begin.”** The new copy points directly to the next action.\n\nThe change is ready in `welcome.txt`. Review the before and after, then apply it when you’re ready.',
     agents: [
@@ -51,12 +51,13 @@ app.whenReady().then(async () => {
       { id: 'demo-helper', name: 'Reviewer', role: 'reviewer', goal: 'Check the next step shown on the welcome screen', status: 'completed', result: 'The welcome message should point to the project picker. No other changes are needed.' },
     ],
     events: [{ id: 'demo-event', agent: 'Reviewer', type: 'completed', at: '2026-11-01T12:00:00Z', detail: 'Reviewed welcome.txt and returned a focused suggestion.' }],
+    filesRead: { 'welcome.txt': { startLine: 1, totalLines: 2 } },
     proposals: [{ id: 'demo-proposal', path: 'welcome.txt', status: 'pending', reason: 'Help people find their next action.', before: 'Welcome to your workspace\nOpen the app\n', after: 'Welcome to your workspace\nChoose a project to begin\n' }],
   };
   state = {
     settings: { ...DEFAULT_SETTINGS, model: 'demo-gemma', theme: 'glass', reducedMotion: true },
     workspace: { selected: 'task:demo-review', sidebarCollapsed: false, drafts: {} },
-    project, activeTask: null, activeChat: null, reviewing: false, endpoint: 'http://127.0.0.1:1234',
+    project, activeTask: null, activeChat: null, reviewing: false, endpoint: 'Bundled llama.cpp · local only',
     dataDir: 'Demo storage', downloads: [], tasks: [task],
     conversations: [{ id: 'demo-chat', title: 'Plan a personal notes app', updatedAt: '2026-11-01T10:00:00Z', messages: [
       { id: 'demo-question', role: 'user', content: 'Help me plan a simple notes app.', status: 'complete' },

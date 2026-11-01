@@ -1,13 +1,14 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { AirloService, MODEL } from '../electron/core.mjs';
+import { AirloService } from '../electron/core.mjs';
+import { loadLiveModel } from './live-model.mjs';
 const dir = path.resolve('test-results/long-response-' + Date.now());
-const service = new AirloService(dir, () => {}, { importModels: false });
-const report = { startedAt: new Date().toISOString(), model: MODEL, endpoint: 'http://127.0.0.1:1234', maxTokens: -1, offline: true };
+const service = new AirloService(dir);
+const report = { startedAt: new Date().toISOString(), engine: 'bundled llama.cpp', maxTokens: -1, offline: true };
 let timeout;
 try {
-  await service.init(); await service.loadModel(MODEL);
+  report.model = (await loadLiveModel(service)).key;
   await service.settings({ offline: true, maxTokens: -1, temperature: 0.2 });
   const id = await service.newConversation();
   timeout = setTimeout(() => service.stopChat(), 240000);
@@ -19,6 +20,7 @@ try {
   assert.ok(answer.usage?.completion_tokens > 1024, 'Expected a real reply beyond the former 1024-token cap.');
   const restored = new AirloService(dir); await restored.init();
   assert.equal(restored.state.conversations[0].messages.at(-1).content, answer.content);
+  await restored.shutdown();
   report.passed = true;
 } catch (e) { report.passed = false; report.error = e.message; process.exitCode = 1; }
 finally {

@@ -24,7 +24,9 @@ if (primaryInstance) app.whenReady().then(async () => {
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !/^(airlobot:|devtools:)/.test(details.url) }));
   const dataDir = process.env.AIRLOBOT_DATA_DIR || path.join(app.getPath('userData'), 'data');
-  service = new AirloService(dataDir, event => { if (win && !win.isDestroyed()) win.webContents.send('airlo:event', event); });
+  service = new AirloService(dataDir, event => { if (win && !win.isDestroyed()) win.webContents.send('airlo:event', event); }, {
+    runtimeDirectory: app.isPackaged ? path.join(process.resourcesPath, 'llama') : path.join(app.getAppPath(), 'native', 'llama')
+  });
   await service.init();
   console.log('AirloBot local state ready');
   const methods = {
@@ -41,10 +43,11 @@ if (primaryInstance) app.whenReady().then(async () => {
       return service.selectProject(result.filePaths[0]);
     },
     startTask: arg => service.startTask(arg), stopTask: arg => service.stopTask(arg), deleteTask: arg => service.deleteTask(arg), reviewChange: arg => service.reviewChange(arg),
+    projectFiles: arg => service.projectFiles(arg), projectRead: arg => service.projectRead(arg),
     importModel: async () => {
       const result = await dialog.showOpenDialog(win, { title: 'Add a local GGUF model', properties: ['openFile'], filters: [{ name: 'GGUF models', extensions: ['gguf'] }] });
       if (result.canceled) return null;
-      await service.runLms(['import', result.filePaths[0], '--hard-link', '--yes'], 60000);
+      await service.registerModel(result.filePaths[0]);
       return service.status();
     }
   };

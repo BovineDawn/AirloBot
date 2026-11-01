@@ -9,7 +9,7 @@ async function fixture(t) {
   const root = path.resolve('test-results/unit');
   await fs.mkdir(root, { recursive: true });
   const dir = await fs.mkdtemp(path.join(root, 'workspace-'));
-  const s = new AirloService(dir, () => {}, { importModels: false });
+  const s = new AirloService(dir, () => {}, { importModels: false, runtime: { fetch: (route, options) => fetch('http://127.0.0.1:29801' + route, options), stop: async () => {}, status: async () => ({ connected: false }) } });
   t.after(async () => { await s.shutdown(); assert.ok(dir.startsWith(root + path.sep)); await fs.rm(dir, { recursive: true, force: true }); });
   await s.init(); return s;
 }
@@ -69,7 +69,7 @@ test('unlimited and large caps reach the local API, preserve truncation reasons,
   const s = await fixture(t); const original = global.fetch; t.after(() => { global.fetch = original; });
   let expectedCap = -1;
   global.fetch = async (url, options) => {
-    assert.equal(url, 'http://127.0.0.1:1234/v1/chat/completions');
+    assert.equal(url, 'http://127.0.0.1:29801/v1/chat/completions');
     assert.equal(JSON.parse(options.body).max_tokens, expectedCap);
     return new Response('data: {"choices":[{"delta":{"content":"Long reply"},"finish_reason":"length"}],"usage":{"completion_tokens":1500}}\n\ndata: [DONE]\n\n');
   };

@@ -25,12 +25,12 @@ test('project tools confine paths, skip secrets and reject links/binary/oversize
   for (const value of ['../escape', '/etc/passwd', 'C:\\secret.txt', 'file.txt:stream', '.git/config', '.env.local', '.ssh/key', 'a/../b', 'a/.. /b', 'NUL.txt']) assert.throws(() => projectPath(value));
   await fs.writeFile(path.join(project, '.env'), 'secret=private');
   await fs.writeFile(path.join(project, 'binary.bin'), Buffer.from([0, 1, 2]));
-  await fs.writeFile(path.join(project, 'large.txt'), 'a'.repeat(65537));
+  await fs.writeFile(path.join(project, 'large.txt'), 'a'.repeat(1048577));
   const outside = path.join(root, 'outside'); await fs.mkdir(outside); await fs.writeFile(path.join(outside, 'secret.txt'), 'not part of the project');
   await fs.symlink(outside, path.join(project, 'link'), process.platform === 'win32' ? 'junction' : 'dir');
   await assert.rejects(files.read('link/secret.txt'), /links|junctions/);
   await assert.rejects(files.read('binary.bin'), /Binary/);
-  await assert.rejects(files.read('large.txt'), /64 KiB/);
+  await assert.rejects(files.read('large.txt'), /1 MiB/);
   const listed = await files.list(); assert.ok(!listed.entries.some(e => /link|\.env/.test(e.path)));
   const search = await files.search('sum'); assert.equal(search.matches.length, 2); assert.ok(search.skipped >= 2);
   assert.equal((await files.read('sum.js')).complete, true);
@@ -59,7 +59,7 @@ test('primary delegates to the same model with read-only helper tools, proposes,
     return sequence[count++];
   } });
   const id = await service.startTask({ goal: 'Review and fix sum with a helper' }); await service.agentPromise;
-  const task = service.state.tasks[0]; assert.equal(task.status, 'completed'); assert.equal(task.agents.length, 2);
+  const task = service.state.tasks[0]; assert.equal(task.status, 'awaiting_review'); assert.equal(task.agents.length, 2);
   assert.ok(task.agents.every(a => a.status === 'completed')); assert.equal(task.proposals[0].status, 'pending');
   assert.match(await fs.readFile(path.join(project, 'sum.js'), 'utf8'), /a - b/);
   await service.reviewChange({ taskId: id, proposalId: task.proposals[0].id, decision: 'apply' });
@@ -190,12 +190,16 @@ test('deleting recent tasks removes local history/drafts but never project files
   await assert.rejects(service.deleteTask(task.id), /not found/);
 });
 
-test('rejected proposals remain unwritten and cannot be applied from another project', async t => {
+test('rejected proposals remain unwritten; changing the picker cannot redirect a conversation write', async t => {
   const { service, files, root, project } = await fixture(t);
   const task = makeTask('create', service.state.project, service.state.settings.model); task.status = 'completed';
   const proposal = await files.prepare('new.txt', 'pending', 'Create', new Map()); task.proposals.push(proposal); service.state.tasks.push(task);
   const alternate = path.join(root, 'alternate'); await fs.mkdir(alternate); await service.selectProject(alternate);
-  await assert.rejects(service.reviewChange({ taskId: task.id, proposalId: proposal.id, decision: 'apply' }), /Select this task/);
-  await service.selectProject(project); await service.reviewChange({ taskId: task.id, proposalId: proposal.id, decision: 'reject' });
-  await assert.rejects(fs.stat(path.join(project, 'new.txt')), { code: 'ENOENT' }); assert.equal(proposal.status, 'rejected');
+  await service.reviewChange({ taskId: task.id, proposalId: proposal.id, decision: 'apply' });
+  assert.equal(await fs.readFile(path.join(project, 'new.txt'), 'utf8'), 'pending');
+  await assert.rejects(fs.stat(path.join(alternate, 'new.txt')), { code: 'ENOENT' });
+  await service.reviewChange({ taskId: task.id, proposalId: proposal.id, decision: 'undo' });
+  const second = await files.prepare('new.txt', 'pending', 'Create', new Map()); task.proposals.push(second);
+  await service.selectProject(project); await service.reviewChange({ taskId: task.id, proposalId: second.id, decision: 'reject' });
+  await assert.rejects(fs.stat(path.join(project, 'new.txt')), { code: 'ENOENT' }); assert.equal(second.status, 'rejected');
 });

@@ -1,118 +1,110 @@
 # AirloBot user guide
 
-AirloBot 0.5 is a Windows desktop preview for local text models, project investigation, and reviewed file changes. Start with the [README](../README.md#get-started) for installation.
+AirloBot 0.6 is a standalone Windows desktop preview. See the [README](../README.md#get-started) for installation.
 
-## Local engine and model setup
+## Local engine and models
 
-AirloBot requires a working LM Studio installation and the `lms` CLI. On Windows it looks for the CLI in the standard `.lmstudio/bin` directory under your user profile. The server address is fixed to `http://127.0.0.1:1234`; remote inference endpoints and cloud API keys are not supported.
+AirloBot bundles and manages llama.cpp. No separate model application or server is required. Source checkouts install the pinned Windows Vulkan/CPU engine explicitly with `npm run runtime:install`. Packages already include it; the app never downloads executable updates itself.
 
-1. Install a text model supported by your LM Studio runtime.
-2. Open **Model library**. Use **Start engine** if the server is offline, or start the server from LM Studio's Developer tab.
-3. Choose **Use model** on an installed model. You can also select one through the model control beneath the composer.
-4. Confirm that **Local engine connected** is green. A running server without the selected model loaded is shown in red.
+1. Open **Model library → Add local GGUF** and select a model.
+2. Choose **Use model**. AirloBot starts its own engine and loads the file directly.
+3. Confirm that **Local engine connected** is green.
 
-The initial default model identifier refers to the Gemma model used during development. You do not need that exact model: select your own installed model in the library. Project tasks require reliable tool calling, and results depend on the model. The development smoke test used `gemma-4-e4b-uncensored-hauhaucs-aggressive`; this is a compatibility result, not a recommendation for every use case.
+GGUF files stay in their original location, including on another drive. Already-registered models are preserved during upgrades. AirloBot discovers compatible files in its own library once; it does not scan other applications' folders. Use Add local GGUF to register files elsewhere or added later. If upgrading from a version without a model registry, add your existing GGUF once.
 
-Loading an unloaded model requests up to 8,192 context tokens, or the model's lower maximum. An already loaded model keeps its runtime configuration. **Unload from memory** releases a model; closing AirloBot leaves the shared local engine running.
+The existing Gemma 4 E4B model is a compatibility target. Other models require supported architectures/templates; agents also need reliable tool calling. Downloading a model does not guarantee compatibility or enough available memory.
 
-Official references: [LM Studio server](https://lmstudio.ai/docs/developer/core/server), [chat-completions compatibility](https://lmstudio.ai/docs/developer/openai-compat/chat-completions).
+**Settings → Privacy and local engine** offers context sizes from 4,096 to 65,536 tokens and Auto GPU / CPU acceleration. Default: 16,384 tokens. Project tools require at least 8,192. Higher values use more memory; the model's maximum also applies. Settings take effect at the next load/send. Unload releases memory; normal app shutdown stops the engine.
 
-## Ask and project work
+Engine reference: [llama.cpp server](https://github.com/ggml-org/llama.cpp/blob/b11960/tools/server/README.md). Build provenance and the archive checksum are pinned in `scripts/runtime-lock.json`.
 
-**Ask** is a conversation without file tools. The folder picker is hidden. **Work on project** uses the folder you select at the top of the workspace. Switching modes preserves each draft and does not submit it.
+## Project conversations
 
-The main agent can list files, read UTF-8 text, search literal text, create researcher/reviewer helpers, and propose small files. Helpers use the same loaded model with separate contexts. They run one at a time, can only read, and cannot create more helpers.
+**Ask** has no file tools and hides the folder picker. **Work on project** binds a conversation to its folder. Follow-ups stay in that conversation. **New task** starts separate work. Choosing another folder starts new work; reopening an old conversation retains its original folder.
 
-Open **Helpers** to inspect findings or the compact activity row to inspect tool activity. If a proposal is available, **Review changes** opens a side panel or, on smaller windows, a drawer. The changed section is a preview; expand **Review full before and after** for the complete file. A shortened preview is labeled.
+**Files** opens a local directory browser. Open subfolders, show more entries, preview text, and choose **Use this file in my request**. Pages contain up to 100 entries; there is no former four-level discovery cutoff. Excluded entries are counted. Unsupported documents produce an error instead of invented content.
 
-**Apply this file** writes only the approved file. AirloBot rejects stale proposals if the file has changed since it was read. **Reject** leaves the file untouched. Historical proposals require selecting the original project folder again.
+The progress row describes the current action. **Read local files** lists actual reads. **Helpers** and **Activity** show tool outcomes. A response without file evidence or proposals is labeled as needing direction, not completed file work.
 
-## Work budgets and longer replies
+Helpers use the same local model, separate contexts, and read-only tools. Up to two run sequentially per submitted turn. Their suggestions cannot authorize writes or override user instructions. Models can still make mistakes; inspect the actual proposals.
 
-| Control | Default | Options and behavior |
+Follow-ups include recent goals, results, change states, and file references. Up to six recent turns are shortened to fit the context budget; older history remains saved. Files must be read again before editing because prior evidence can become stale.
+
+## Reviewed folders and document edits
+
+Try: “Read README.md, create a docs folder, and write a summary in docs/overview.md.”
+
+Open **Review changes**, inspect paths and before/after text, then choose **Apply change** or **Reject**. Apply folder proposals before dependent files. Approvals target the conversation's original folder even if the picker has since changed. Model tools never apply writes themselves.
+
+Targeted edits replace one uniquely matching passage after it has been read. Unrelated text stays unchanged, and CRLF line endings are preserved. Entire replacements require reading the full current file; reading can span multiple pages. Proposals are rejected if the source changed after reading.
+
+**Undo this change** restores the saved previous content, removes an unchanged newly created file, or removes only empty directories that operation created. Undo refuses to overwrite newer edits and never recursively deletes folders. Undo child changes before their folder. Deleting a conversation also removes its saved undo information; it never deletes project files.
+
+Editing supports UTF-8 text, Markdown, and source/configuration files. Word, PDF, spreadsheets, images, and other binary documents require their native editor or a text export. AirloBot rejects attempts to create these formats as plain text.
+
+## Limits and recovery
+
+| Control | Default / limit | Behavior |
 | --- | --- | --- |
-| Chat response length | Unlimited (model context) | Remove the app token cap or choose a fixed cap up to 32,768 tokens. |
-| Task work budget | 100 model turns | Shared by the main agent and helpers. Tool actions do not consume additional model turns. Unlimited is available. |
-| Task time limit | 60 minutes | Independent of the turn budget. No time limit is available. |
-| Individual task request | 120 seconds | A stalled request times out. |
-| Task reply capacity | 4,096 tokens per request | Model context and runtime limits still apply. |
+| Chat response length | Unlimited (model context) | Removes the app output cap; context and memory still apply. |
+| Project budget | 100 model turns / 60 minutes | Shared by main agent and helpers per submitted turn. Unlimited turns and No time limit are available. |
+| Individual task request | 300 seconds / 4,096 output tokens | A stalled request times out. |
+| Text file size | 1 MiB | Each read returns up to 200 lines / 6,000 raw characters. |
+| New/replacement content | 24,000 characters | Use targeted edits for larger existing files. |
+| Proposals | 20 per submitted turn | Every change requires review. |
 
-Task settings apply to new tasks; a running task keeps its starting budget. Stop cancels parent and helper work. Six consecutive identical tool exchanges with unchanged results stop a stuck agent, including in Unlimited mode. The most recent 500 activity events are retained, with an omitted-event count; results and proposals remain saved.
+Stop cancels parent and helper work. Six identical tool exchanges with unchanged results stop a loop. Empty replies receive at most two recovery requests. The latest 500 activity events per turn are kept; results and proposals remain saved.
 
-For chat, **Continue response** appears when the runtime reports a token/context cutoff. It sends a follow-up only when clicked. Older complete turns may be omitted to fit the 24,000-character request budget, including assistant instructions; the reply reports omissions without deleting saved history. This is an approximate character budget, not a tokenizer. Reasoning may consume output tokens even when the request asks to disable it.
+**Continue saved work** submits a follow-up after a stop, failure, limit, or restart using saved findings. It does not restore an exact in-flight model execution or replay writes. Interrupted writes are marked uncertain for inspection.
 
-An unfinished task is marked interrupted after restart. **Use this goal** starts a fresh attempt; it does not resume an old execution or replay writes. A write interrupted at an uncertain point is marked for manual inspection.
+Chat's **Continue response** appears when the engine reports a cutoff. Earlier turns may be omitted from a request's approximate context budget without deleting history. Unlimited output does not enlarge model context.
 
-## File-tool scope
+## Model downloads
 
-The current tools suit investigation and small changes:
+Offline mode is on by default for new installations. Disable it explicitly to use **Find models**. Search by name or `publisher/repository`, choose a public, ungated, single-file GGUF, and follow progress in **Downloads**. Downloads pin a revision and verify size and SHA-256. Pause/resume retains partial bytes; verified files register directly with AirloBot.
 
-- At most two helpers and five file proposals per task.
-- UTF-8 files up to 64 KiB for reading; each read returns at most 120 lines or 6,000 characters.
-- Replacing an existing file requires a complete current read; existing replacement files are limited to 6,000 characters.
-- Proposed content is limited to 12,000 characters. New files require an existing parent directory.
-- Discovery covers up to 200 entries and four directory levels. Use a narrower directory when results are truncated.
-- Generated folders, sensitive filename patterns, model weights, symlinks, and junctions are excluded.
-
-There is no terminal, command execution, test runner, autonomous write, browser tool, scheduled job, or nested helper delegation. The project boundary is an application-level restriction, not an operating-system sandbox against other processes modifying the filesystem.
-
-## Model library
-
-Open **Model library → Find models** and search by name or enter `publisher/repository`. Choose a suitable single-file GGUF and select **Download**. Downloads use a pinned revision and check size and SHA-256 before import. Follow progress in **Downloads**, where pause/resume retains partial data.
-
-After import, open **Installed**, refresh if needed, and choose **Use model**. Downloading a GGUF does not guarantee that your runtime supports its architecture or that it fits available memory. Repository licenses are shown; the model's license governs its use.
-
-This preview supports public, ungated, single-file GGUF downloads. Split files are disabled. Vision projectors can be saved separately, but this release is text-only and does not automatically register multimodal models.
-
-**Add local GGUF** and verified downloads use LM Studio hard-link imports. The source and runtime library must be on the same drive. If import fails, the verified file remains available and **Add to runtime** retries the import without silently copying multiple gigabytes.
+Split GGUFs and vision projectors are disabled in the interface. This release supports text only. Downloaded models retain their own licenses.
 
 ## Privacy and storage
 
-Using **Start AirloBot.cmd** stores local state under the checkout's `data` directory:
+The launcher uses the checkout's `data` directory. Direct executable/npm launches use Electron's standard AirloBot user-data directory; use the launcher consistently to retain the same history.
 
 | Location | Contents |
 | --- | --- |
-| `data/state.json` | Chats, drafts, tasks, helper activity, source excerpts, file proposals, and preferences. |
-| `data/models/` | Downloaded model files and partial downloads. |
-| `data/electron-profile/` | Electron/Chromium preferences and cache. |
+| `data/state.json` | Conversations, drafts, task turns, helper activity, source excerpts, before/after proposals, local model paths, settings. |
+| `data/models/` | Downloads and partial model files. |
+| `data/backups/` | Pre-migration backup when upgrading older state. |
+| `data/electron-profile/` | Electron preferences and cache. |
 
-These files are readable local data, not encrypted storage. Back up the data folder before replacing an application build. Running `npm start` or the executable directly uses Electron's standard AirloBot user-data location instead; use the launcher consistently to retain the same history.
+Storage is readable local data, not encryption. Proposal contents provide undo records. Back up this folder before replacing builds. Deleting recent work does not erase separate backups or securely wipe disk sectors.
 
-Inference requests go only to the fixed loopback server, with redirects rejected. Hugging Face receives model searches and downloads, never conversation payloads from AirloBot. Download redirects are restricted to HTTPS Hugging Face/CDN hosts. The renderer blocks remote connections, navigation, and embedded remote images. AirloBot has no telemetry or cloud model fallback.
+Only AirloBot's owned engine receives prompts and project content. It binds to `127.0.0.1` on a dynamic port and requires a random session key, kept out of renderer state and saved conversations. Redirects are rejected. Remote binding, native engine agent tools, its web UI, and request logging are disabled. Inherited environment variables cannot enable remote hosts or command tools.
 
-**Offline mode** blocks AirloBot's Hugging Face operations. It is not an OS firewall and does not change LM Studio's separate networking or updater behavior.
+The renderer blocks remote requests, navigation, and embedded remote images. There is no telemetry, account login, or cloud inference fallback. Offline mode blocks Hugging Face operations while local inference remains usable. When enabled, Hugging Face receives search terms and download requests, never conversation payloads. This setting is not an OS firewall for other applications.
 
-Runtime data, models, logs, backups, and private captures are ignored by Git and excluded from Windows packages. Repository publishing checks look for known sensitive paths, personal home paths, tokens, and private keys; they are not comprehensive personal-data detection. The README images are the only deliberate product captures: they use fixed synthetic fixtures, not the user's data. See [media provenance](media/README.md).
+Project tools stay within their folder and exclude sensitive paths, generated folders, symlinks, and junctions. This application boundary is not a complete OS sandbox against other processes changing files.
 
-## History, drafts, and appearance
-
-Each recent task/chat has a trash control and confirmation. Deleting a task removes its saved record, draft, activity, and proposals. Project files—including changes already applied—stay intact. Running work cannot be deleted until stopped. This does not erase separate backups or securely wipe disk sectors.
-
-Drafts are saved per work item. **Ctrl+B** toggles the sidebar, **Ctrl+I** focuses the composer, **Enter** submits, and **Shift+Enter** adds a line. A failed first send keeps its draft.
-
-Choose **Light**, **Dark**, or **Liquid Glass** in **Settings → Appearance**. Glass diffusion, reduced transparency, and reduced motion save automatically. System accessibility preferences are respected. Liquid Glass is an independent CSS interpretation, not Apple's native macOS material.
+Runtime data, model weights, native binaries, logs, backups, and private captures are ignored by Git. Packages exclude user data and research artifacts. Publishing checks detect recognized private-data paths and credentials; they are not comprehensive personal-data detection. Product screenshots use synthetic fixtures only. See [media provenance](media/README.md).
 
 ## Troubleshooting
 
-| Symptom | What to check |
+| Symptom | Action |
 | --- | --- |
-| Engine offline | Start LM Studio's local server on port 1234. Confirm the CLI is installed in its standard location. |
-| No model connected | Open Installed and choose Use model; a running server alone is not enough. |
-| Tool calls fail or are malformed | Use a compatible tool-capable local model, or make the goal more specific. |
-| Task reaches a work/time limit | Adjust Project tasks in Settings, then use the goal for a fresh run. |
-| Reply hits a context limit | Shorten the prompt/instructions or start a fresh conversation. Unlimited does not enlarge the model's context. |
-| A proposed change will not apply | Re-select its original project and check whether the file changed. Generate a fresh proposal rather than overwriting newer edits. |
-| Download verified but import failed | Confirm both locations are on the same drive, then choose Add to runtime. |
-| Model hash mismatch | The unverified file is not imported. Remove only the affected `.part` file from the model library, then Resume. |
-| Electron binary missing after installing dependencies | Run `npx --no-install install-electron`, then rebuild. See [Electron installation](https://www.electronjs.org/docs/latest/tutorial/installation). |
-| Windows blocks the executable | Use your normal organization/admin approval process. Do not disable Windows protection to run it. |
+| Engine missing | Run `npm run runtime:install` in source checkouts; packaged apps need their complete `resources/llama` folder. |
+| Model cannot load | Confirm the GGUF exists. Try CPU or smaller context. Check architecture support. |
+| Weak agent results | Use specific paths/instructions, inspect tool evidence, or select another tool-capable model. |
+| Task reaches a limit | Increase project budgets and Continue saved work. |
+| File not visible | Browse deeper or show another page; excluded paths stay restricted. |
+| Proposal is stale | Ask for a fresh read and edit; newer work will not be overwritten silently. |
+| New file has no parent | Apply the folder proposal first. |
+| Undo refuses | Resolve newer edits or undo child files first. |
+| Download did not register | Choose Add to library; check metadata and architecture. |
+| Windows blocks a binary | Use your normal Windows/admin approval process; do not disable Windows protection. |
 
-## Build a Windows package
+## Packaging and preferences
 
-```powershell
-npm run package
-```
+Run `npm run runtime:install`, then `npm run package`. Output: `release/standalone/AirloBot-win32-x64`, including engine licenses. Keep the entire folder together. Builds are unsigned, with no automatic updater. The existing launcher prefers `release/AirloBot-win32-x64`; deploy a reviewed build there or use source mode in a checkout without that installation.
 
-The output is `release/AirloBot-win32-x64`. Keep that entire folder together. Packaging does not overwrite an existing release; close it and archive the old build first. Retain the separate `data` folder and use the launcher for the same history. Builds are unsigned and do not include a signed installer or auto-update mechanism.
+Light, Dark, and Liquid Glass are under **Settings → Appearance** with motion/transparency controls. Glass is an independent CSS interpretation. **Ctrl+B** toggles the sidebar, **Ctrl+I** focuses the composer, **Enter** submits, and **Shift+Enter** inserts a line. Drafts are saved per conversation.
 
-For development checks and contribution workflow, see [Contributing](../CONTRIBUTING.txt).
+For contribution checks and protected-branch practices, see [Contributing](../CONTRIBUTING.txt).

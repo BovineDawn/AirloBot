@@ -12,9 +12,15 @@ Local checks (Node 22.23.4 used here)
   npm run privacy:check
   npm run build
   git diff --check
-On a clean Windows installation, run npx install-electron before npm start.
-Live model/download/import smoke tests require the local runtime and explicit
-network/disk setup; they do not run in public CI.
+On a clean Windows installation, run npx install-electron and
+npm run runtime:install before npm start. The app manages the bundled engine.
+Live tests require the bundled runtime and an explicit local GGUF path:
+  npm run test:live -- "D:\Models\model.gguf"
+  npm run test:agents -- "D:\Models\model.gguf"
+  node scripts/import-smoke.mjs "D:\Models\model.gguf"
+The chat smoke test is offline unless --downloads is also supplied. That flag
+explicitly enables public Hugging Face search/download checks. These tests use
+ignored test-results profiles and do not run in public CI.
 
 Keep package-lock.json committed. Change version in both package files together.
 Tag reviewed working milestones with annotated vX.Y.Z tags. Prefer focused PRs
@@ -25,8 +31,8 @@ failure modes, permission boundaries and cancellation behavior.
 Do not commit data/, release/, node_modules/, test-results/, model weights,
 .env files, private keys, original extracted Grok Bot files or credentials.
 The Git root is this app folder, never the parent research workspace.
-A model or local integration should be an optional user-installed dependency,
-not a binary embedded in the Git repository.
+Model weights stay user-supplied. Native engine binaries are bundled with
+desktop packages from the pinned runtime lock, never committed to Git.
 
 CI runs isolated unit tests and a renderer production build on Windows/Linux.
 The Windows desktop package is validated locally. CI does not imply GUI or real
@@ -56,7 +62,8 @@ Baseline: v0.1.0 preserves the original working prototype.
 v0.2.0: AirloBot name, robot branding and neutral appearance options.
 
 v0.3.0: Project tools, bounded local helpers, task history and reviewed file proposals.
-Run npm run test:agents for the local Gemma fixture. It creates only disposable
+For current standalone behavior, test:agents and test:standalone share the same
+acceptance test. Run npm run test:standalone -- <local-GGUF-path>. It creates only disposable
 files under ignored test-results; do not run it against user projects.
 
 v0.4.0: Focus workspace, saved drafts, longer replies and three accessible themes.
@@ -68,3 +75,8 @@ repository privacy checks. Enable the versioned pre-push hook in every clone:
   git config core.hooksPath .githooks
 See docs/TASK_CONTROLS_AND_PRIVACY.txt for semantics and test coverage. Never
 force-add saved conversations or bypass a privacy failure to publish.
+
+v0.6.0: Bundled authenticated llama.cpp, direct GGUF registration, persistent
+project conversations, paged file browsing, reviewed folders and targeted edits,
+and conflict-aware undo. Native binaries live only in ignored native/ and release/.
+Run scripts/focus-ui-test.cjs with Electron for synthetic renderer checks.

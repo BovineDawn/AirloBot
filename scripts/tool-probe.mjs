@@ -1,10 +1,11 @@
 // Real local inference with synthetic tools. No tool handler executes any action.
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { AirloService, MODEL, localFetch } from '../electron/core.mjs';
+import { AirloService } from '../electron/core.mjs';
+import { loadLiveModel } from './live-model.mjs';
 
-const service = new AirloService(path.resolve('test-results/tool-probe-state'));
-const report = { date: new Date().toISOString(), model: MODEL, cases: [] };
+const service = new AirloService(path.resolve('test-results/tool-probe-' + Date.now()));
+const report = { date: new Date().toISOString(), cases: [] };
 const tool = (name, properties, required) => ({ type: 'function', function: {
   name, description: `Synthetic ${name} evaluation. Request only; no real execution.`,
   parameters: { type: 'object', properties, required, additionalProperties: false }
@@ -14,15 +15,14 @@ const spawn = tool('spawn_agent', { role: { type: 'string', enum: ['reviewer'] }
 const system = { role: 'system', content: 'You are AirloBot. Request exactly the specified tool when needed. Never invent a tool result. A denied tool must not be retried or delegated; explain the denial. Be concise.' };
 async function complete(messages, tools) {
   const start = Date.now();
-  const response = await (await localFetch('/v1/chat/completions', {
-    method: 'POST', body: JSON.stringify({ model: MODEL, messages, tools, tool_choice: 'auto', temperature: 0, max_tokens: 1024, stream: false }),
+  const response = await (await service.runtime.fetch('/v1/chat/completions', {
+    method: 'POST', body: JSON.stringify({ model: service.state.settings.model, messages, tools, tool_choice: 'auto', temperature: 0, max_tokens: 1024, stream: false }),
     signal: AbortSignal.timeout(120000)
   })).json();
   return { message: response.choices[0].message, finishReason: response.choices[0].finish_reason, elapsedMs: Date.now() - start };
 }
 try {
-  await service.init();
-  await service.loadModel(MODEL);
+  report.model = (await loadLiveModel(service)).key;
   const messages = [system, { role: 'user', content: 'Use read_file to inspect README.txt before explaining what this project does.' }];
   const first = await complete(messages, [read]);
   const calls = first.message.tool_calls || [];

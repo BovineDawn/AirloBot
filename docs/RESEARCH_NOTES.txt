@@ -16,9 +16,6 @@ Primary public documentation
   in host code rather than relying on a model instruction to ask nicely.
 - https://docs.x.ai/grok-bot/skills-routines-and-automations
   Reusable instructions and scheduled workflows follow successful one-off tasks.
-- https://lmstudio.ai/docs/developer/openai-compat/tools
-  The model requests functions; the host executes them and returns results.
-  Support and output format vary with the model and its runtime/template.
 - https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture
   MCP supplies tools/context through host/client/server components. Local stdio
   can be useful later but does not replace our agent/task scheduler.
@@ -52,7 +49,7 @@ conversations and model weights. Research notes distinguish public product
 behavior, local observations and our proposed implementation.
 
 Local Gemma capability probe (2026-11-01, three synthetic cases)
-Command: node scripts/tool-probe.mjs
+Current command: node scripts/tool-probe.mjs "D:\Models\model.gguf"
 No actual file reads, helper creation or other tool actions were executed.
 - Correct read_file arguments for README.txt: passed, 994 ms.
 - No further calls after simulated permission denial: passed, 3091 ms.
@@ -61,3 +58,8 @@ The denial answer nevertheless speculated about the unread project's purpose.
 Thus these are protocol checks, not proof of reliable grounded task completion
 or secure permissions. Host enforcement and a broader task-quality evaluation
 remain essential. Raw responses stay in ignored test-results/tool-probe.json.
+
+Current tool implementation: electron/agents.mjs validates model requests before
+host execution and returns structured results. The standalone acceptance test
+in scripts/standalone-live-test.mjs covers real local file reads, helper creation,
+reviewed edits and undo. Tool quality still depends on the model and template.
