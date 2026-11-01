@@ -1,4 +1,4 @@
-AIRLOBOT 0.3
+AIRLOBOT 0.4
 An independent local desktop assistant, built from the architectural research
 in the parent grokbotclone folder. No original Grok Bot application code/assets
 or production services are used by this implementation.
@@ -42,7 +42,8 @@ AirloBot closes; use Unload from memory to release a selected model's memory.
 
 PROJECT TASKS
 
-Open Project tasks, choose a project folder, enter a goal, and click Run task.
+In the workspace, choose Work on project and a project folder, enter a goal,
+and click Run task. Choose Ask for a conversation without file tools.
 AirloBot uses the selected installed model; the model picker is shared with chat.
 Try: "Inspect this project, create a reviewer helper to find one issue, and
 propose a small fix with file and line references."
@@ -52,8 +53,9 @@ researcher/reviewer helpers, and propose small files. Helpers share the same
 loaded model but have separate contexts and read-only tools. They run in turn,
 not simultaneously, with at most two helpers and no nested delegation.
 
-The task page shows agent status, results, detailed activity and proposed changes.
-Expand a proposal to inspect the complete before/after text, then Apply this file
+Task results appear in the main workspace. Review changes opens a side panel
+(or a drawer on smaller windows) with changed lines and full before/after text.
+Choose Apply this file
 or Reject. Nothing is written by a model tool itself. AirloBot checks that the
 file has not changed since the proposal. Existing files must be read completely
 before replacement; large-file patch editing is a future feature.
@@ -78,6 +80,14 @@ No terminal, test runner, network browsing, autonomous writes, background daemon
 parallel inference, MCP connector or scheduled automation is provided yet.
 Task instructions are separate from the chat assistant's instructions.
 
+RESPONSE LENGTH
+
+Settings > Responses defaults to Unlimited (model context). This removes the old
+1,024-token app cap; the model context and available memory still apply. Older
+turns may be omitted from a request without deleting saved history. Project tasks
+keep their separate work limits. See docs/FOCUS_RELEASE_NOTES.txt for exact
+limits, migration behavior and privacy details.
+
 AVAILABLE NOW
 
 - Streaming local chat, Markdown answers, cancellation, and local history.
@@ -89,18 +99,20 @@ AVAILABLE NOW
   can discover them without duplicating their disk usage on the same drive.
 - Add local GGUF through the native file picker; this also creates a hard link.
 - Offline mode blocks Hugging Face operations while local chat continues.
-- Temperature, response-token limit and assistant instructions.
-- AirloBot robot branding and Graphite, Midnight and Liquid Glass themes.
-- Adjustable glass intensity and reduced motion, saved automatically.
+- Temperature, Unlimited (model context), fixed reply caps up to 32,768 tokens,
+  and assistant instructions. Continue is offered for runtime-truncated replies.
+- One recent-work sidebar, saved drafts, search, and on-demand task details.
+- Robot branding with Light, Dark and macOS-inspired Liquid Glass themes.
+- Adjustable glass diffusion, reduced transparency and reduced motion.
 
 MODEL LIBRARY WORKFLOW
 
-1. Open Model library > Hugging Face.
+1. Open Model library > Find models.
 2. Search by model name, or enter publisher/repository to open it directly.
 3. Choose one suitable single-file GGUF quantization and click Download.
 4. Follow progress in Downloads. Pause and Resume retain partial data.
 5. After SHA-256 verification and runtime import, open Installed, refresh if
-   necessary, and click Use model. Use Chat when the selected model is ready.
+   necessary, and click Use model. Choose Ask when the selected model is ready.
 
 This first version supports PUBLIC, UNGATED, SINGLE-FILE GGUF models. Split GGUFs
 are identified and disabled. A GGUF download is not a guarantee that the local
@@ -129,16 +141,20 @@ an application-level network restriction for AirloBot's model-library features,
 not an operating-system firewall or a change to other applications.
 
 data/state.json contains local conversation history, task activity, source excerpts,
-file proposals and preferences in readable
+file proposals, drafts and preferences in readable
 JSON. It is not encrypted. data/electron-profile contains Chromium preferences
 and cache. This data is excluded from the Windows package. Keep the data folder
 when updating the application if you want to retain your conversations.
 
 VALIDATION
 
-npm test: 18 passing tests covering local-only request routing, Hub redirects,
+npm test: 23 passing tests covering local-only request routing, Hub redirects,
 path confinement, split UTF-8 streaming, offline mode, persistence, cancellation,
-duplicate sends, resumed downloads, and rejection of corrupted model data.
+duplicate sends, resumed downloads, rejection of corrupted model data, saved
+drafts, response limits, settings migration, and recent-turn context.
+
+The Focus renderer harness and real Unlimited response test are documented in
+docs/FOCUS_RELEASE_NOTES.txt, including the 2,482-token local Gemma result.
 
 scripts/live-test.mjs: Real inference on the requested Gemma model with offline
 mode enabled; actual Hugging Face search; a 1,185,376-byte public GGUF download

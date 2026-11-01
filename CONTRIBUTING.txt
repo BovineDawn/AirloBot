@@ -51,3 +51,7 @@ v0.2.0: AirloBot name, robot branding and neutral appearance options.
 v0.3.0: Project tools, bounded local helpers, task history and reviewed file proposals.
 Run npm run test:agents for the local Gemma fixture. It creates only disposable
 files under ignored test-results; do not run it against user projects.
+
+v0.4.0: Focus workspace, saved drafts, longer replies and three accessible themes.
+Run the manual renderer and local response checks described in
+docs/FOCUS_RELEASE_NOTES.txt. They do not run in public CI.
