@@ -141,3 +141,88 @@ test('long-line read cursors make progress and targeted edits retain CRLF', asyn
   const change = await files.prepareEdit('windows.md', '# Before\nKeep this.', '# After\nKeep this.', 'Change heading', reads);
   assert.equal(change.after, text.replace('# Before', '# After'));
 });
+
+test('build requests recover from folder-only and prose-only replies without writing files', async t => {
+  const sequence = [call('propose_directory', {path:'calculator',reason:'App folder'}), answer('Approve the folder and then I will write code.'), answer('Here is the code. The file is ready.'), call('propose_file', {path:'calculator/main.py',content:'print("sample")\n',reason:'App entry'}), answer('Review the source file.')];
+  const {service,project} = await fixture(t,{agentRequest:async body=>{
+    assert.equal(body.tool_choice,sequence.length<=3 && sequence.length>1 ? 'required' : 'auto');
+    return sequence.shift();
+  }});
+  await service.startTask({goal:'Build a Python calculator app with a GUI in calculator.'}); await service.agentPromise;
+  const task=service.state.tasks[0]; assert.equal(task.status,'awaiting_review'); assert.equal(task.proposals.length,2);
+  assert.equal(task.events.filter(e=>e.type==='retry').length,2);
+  await assert.rejects(fs.stat(path.join(project,'calculator')),{code:'ENOENT'});
+});
+
+test('long follow-up conversations retain the user build objective and pending folder authority', async t => {
+  const {service,project}=await fixture(t,{agentRequest:async()=>answer('I created the calculator files.')});
+  const id=await service.startTask({goal:'Code a Python calculator app with a GUI.'}); await service.agentPromise;
+  let task=service.state.tasks[0]; assert.equal(task.status,'needs_attention'); assert.match(task.result,/did not prepare/);
+  task.proposals.push(await (await ProjectFiles.open(project)).prepareDirectory('calculator','App folder'));
+  for(let n=0;n<8;n++) { await service.startTask({taskId:id,goal:'proceed'}); await service.agentPromise; }
+  assert.equal(service.state.tasks[0].status,'needs_attention');
+  let turn=0;
+  service.options.agentRequest=async body=>{
+    assert.match(body.messages[0].content,/User build objective: Code a Python calculator/);
+    assert.ok(body.messages.every(m=>!m.content?.includes('I created')));
+    return turn++ ? answer('Source prepared for review.') : call('propose_file',{path:'calculator/main.py',content:'print("sample")',reason:'Source'});
+  };
+  await service.startTask({taskId:id,goal:'Continue the previous task using the saved findings.'}); await service.agentPromise;
+  task=service.state.tasks[0]; assert.equal(task.status,'awaiting_review'); assert.equal(task.proposals[0].needsDirectory,'calculator');
+  await assert.rejects(fs.stat(path.join(project,'calculator')),{code:'ENOENT'});
+});
+
+test('missing new files are actionable absence, while security errors remain unresolved', async t => {
+  const sequence=[call('read_file',{path:'src'}),call('read_file',{path:'main.py'}),call('propose_file',{path:'main.py',content:'print("hello")',reason:'Create program'}),answer('Review main.py.')];
+  const {service,project}=await fixture(t,{agentRequest:async body=>{
+    if(sequence.length===3) assert.match(body.messages.at(-1).content,/This is a directory/);
+    if(sequence.length===2) assert.match(body.messages.at(-1).content,/"exists":false/);
+    return sequence.shift();
+  }});
+  await fs.mkdir(path.join(project,'src'));
+  const id=await service.startTask({goal:'Create a Python program.'}); await service.agentPromise;
+  assert.equal(service.state.tasks[0].status,'awaiting_review'); assert.equal(service.state.tasks[0].events.filter(e=>e.type==='tool_error').length,0);
+  const unsafe=[call('read_file',{path:'../outside.txt'}),answer('Cannot read outside project.')];
+  service.options.agentRequest=async()=>unsafe.shift();
+  await service.startTask({taskId:id,goal:'Read an outside file.'}); await service.agentPromise;
+  assert.equal(service.state.tasks[0].status,'needs_attention'); assert.ok(Object.keys(service.state.tasks[0].unresolvedErrors).length);
+});
+
+test('truncated source is discarded before tools run and retried as a complete file', async t=>{
+  const partial=call('propose_file',{path:'bad.py',content:'partial',reason:'incomplete'}); partial.choices[0].finish_reason='length';
+  const sequence=[partial,call('propose_file',{path:'main.py',content:'print("ready")',reason:'Complete file'}),answer('Review main.py.')];
+  const {service}=await fixture(t,{agentRequest:async()=>sequence.shift()});
+  await service.startTask({goal:'Create a Python file.'}); await service.agentPromise;
+  const task=service.state.tasks[0]; assert.equal(task.status,'awaiting_review'); assert.deepEqual(task.proposals.map(p=>p.path),['main.py']);
+  assert.equal(task.events.filter(e=>e.type==='retry').length,1);
+});
+
+test('explanations and read-only questions do not trigger creation retries', async t=>{
+  let count=0; const {service}=await fixture(t,{agentRequest:async()=>{count++;return answer('Here are the steps.');}});
+  for(const goal of ['Explain how to create a file.','Show me how to build a Python app.','Do not create files; describe the approach.']) {
+    await service.startTask({goal}); await service.agentPromise;
+    assert.equal(service.state.tasks[0].status,'needs_input');
+  }
+  assert.equal(count,3);
+});
+
+test('a corrected tool schema clears its earlier validation failure', async t=>{
+  const sequence=[call('propose_file',{path:'main.py',content:'print("hello")',reason:''}),call('propose_file',{path:'main.py',content:'print("hello")',reason:'Create program'}),answer('Review main.py.')];
+  const {service}=await fixture(t,{agentRequest:async()=>sequence.shift()});
+  await service.startTask({goal:'Create a Python file.'}); await service.agentPromise;
+  const task=service.state.tasks[0]; assert.equal(task.status,'awaiting_review'); assert.deepEqual(task.unresolvedErrors,{});
+  assert.equal(task.proposals.length,1);
+});
+
+test('reading a file then printing replacement code cannot complete an edit request', async t=>{
+  let calls=0;
+  const {service,project}=await fixture(t,{agentRequest:async body=>{
+    if(calls++===0) return call('read_file',{path:'app.py'});
+    if(calls>2) assert.equal(body.tool_choice,'required');
+    return answer('I will replace app.py. Here is the proposed code: print("new").');
+  }});
+  await fs.writeFile(path.join(project,'app.py'),'print("old")');
+  await service.startTask({goal:'Replace app.py with a working calculator application.'}); await service.agentPromise;
+  assert.equal(service.state.tasks[0].status,'needs_attention');assert.equal(service.state.tasks[0].proposals.length,0);
+  assert.equal(await fs.readFile(path.join(project,'app.py'),'utf8'),'print("old")');
+});
