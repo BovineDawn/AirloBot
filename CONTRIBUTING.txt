@@ -32,11 +32,18 @@ The Windows desktop package is validated locally. CI does not imply GUI or real
 model evaluation. Before distribution, verify ASAR contents exclude user data
 and research artifacts, and test the packaged launcher on Windows.
 
-Recommended repository settings (must be configured on GitHub)
-Require a pull request and successful CI on main; disallow force pushes and
-branch deletion; use branch protections/rulesets appropriate to your account.
-A workflow file alone does not configure these policies. Select a project
-license before describing this repository as licensed open source.
+Main branch rules (configured on GitHub on 2026-11-01)
+https://github.com/BovineDawn/AirloBot/rules/26319654
+All changes require a pull request, resolved review threads, and an up-to-date
+branch with successful GitHub Actions checks named verify (ubuntu-latest) and
+verify (windows-latest). Keep these job names aligned with the ruleset.
+Force pushes and deletion are blocked. Squash or rebase merges preserve linear
+history. No actors, including administrators, have bypass permission.
+The solo-maintainer policy requires zero additional human approvals; the owner
+can merge their own PR once all checks pass. Revisit this when adding reviewers.
+These rules are configured on GitHub; the workflow file alone cannot enforce
+them. Select a project license before describing this repository as licensed
+open source.
 
 Baseline: v0.1.0 preserves the original working prototype.
 v0.2.0: AirloBot name, robot branding and neutral appearance options.
