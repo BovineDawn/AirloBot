@@ -40,3 +40,7 @@ license before describing this repository as licensed open source.
 
 Baseline: v0.1.0 preserves the original working prototype.
 v0.2.0: AirloBot name, robot branding and neutral appearance options.
+
+v0.3.0: Project tools, bounded local helpers, task history and reviewed file proposals.
+Run npm run test:agents for the local Gemma fixture. It creates only disposable
+files under ignored test-results; do not run it against user projects.

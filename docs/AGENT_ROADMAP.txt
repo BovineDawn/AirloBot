@@ -114,8 +114,14 @@ Start with a deliberately small fixture repository and real local inference.
 Approval denial, cancellation, malformed tool output, restart and a helper
 failure must be demonstrated alongside the happy path.
 
-CURRENT BOUNDARY
-v0.2 delivers AirloBot branding, a robot mark and Graphite/Midnight/Liquid Glass
-appearance with local chat and a model library. It does not yet create agents,
-execute project tools, manage jobs, browse for the model or run automations.
-All items above are implementation proposals, not claims about shipped behavior.
+CURRENT BOUNDARY (updated for v0.3)
+v0.3 implements a bounded tool loop, project selection, read/search/list tools,
+up to two read-only helpers, saved JSON task history, cancellation, and small
+file proposals applied only through user review. Helpers take turns on one model.
+The real Gemma fixture completed its investigation/delegation/proposal in 18
+steps. Current storage is atomic JSON, not the proposed SQLite design.
+
+Still planned: test/command runner, worktree integration, larger-file patches,
+SQLite jobs and richer recovery, token-aware retrieval, persistent agent profiles,
+MCP tools and schedules. The original milestone's automatic test-running portion
+is not shipped. See README.txt for the exact limits of this first agent release.

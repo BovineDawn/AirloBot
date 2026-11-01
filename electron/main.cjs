@@ -35,6 +35,12 @@ if (primaryInstance) app.whenReady().then(async () => {
     modelFiles: arg => service.modelFiles(arg), startDownload: arg => service.startDownload(arg),
     resumeDownload: arg => service.resumeDownload(arg), pauseDownload: arg => service.pauseDownload(arg), retryImport: arg => service.retryImport(arg),
     openData: () => shell.openPath(dataDir),
+    chooseProject: async () => {
+      const result = await dialog.showOpenDialog(win, { title: 'Choose an AirloBot project folder', properties: ['openDirectory'] });
+      if (result.canceled) return null;
+      return service.selectProject(result.filePaths[0]);
+    },
+    startTask: arg => service.startTask(arg), stopTask: arg => service.stopTask(arg), reviewChange: arg => service.reviewChange(arg),
     importModel: async () => {
       const result = await dialog.showOpenDialog(win, { title: 'Add a local GGUF model', properties: ['openFile'], filters: [{ name: 'GGUF models', extensions: ['gguf'] }] });
       if (result.canceled) return null;

@@ -1,4 +1,4 @@
-AIRLOBOT 0.2
+AIRLOBOT 0.3
 An independent local desktop assistant, built from the architectural research
 in the parent grokbotclone folder. No original Grok Bot application code/assets
 or production services are used by this implementation.
@@ -39,6 +39,44 @@ If the engine is stopped, click Start local engine in Model library or Settings.
 Choose Use model to load an installed model. Loading defaults to an 8192-token
 context (or the model's lower maximum). The shared engine remains running when
 AirloBot closes; use Unload from memory to release a selected model's memory.
+
+PROJECT TASKS
+
+Open Project tasks, choose a project folder, enter a goal, and click Run task.
+AirloBot uses the selected installed model; the model picker is shared with chat.
+Try: "Inspect this project, create a reviewer helper to find one issue, and
+propose a small fix with file and line references."
+
+The primary agent can list files, read UTF-8 text, search literal text, create
+researcher/reviewer helpers, and propose small files. Helpers share the same
+loaded model but have separate contexts and read-only tools. They run in turn,
+not simultaneously, with at most two helpers and no nested delegation.
+
+The task page shows agent status, results, detailed activity and proposed changes.
+Expand a proposal to inspect the complete before/after text, then Apply this file
+or Reject. Nothing is written by a model tool itself. AirloBot checks that the
+file has not changed since the proposal. Existing files must be read completely
+before replacement; large-file patch editing is a future feature.
+
+Stop cancels parent and helper inference. Tasks are saved locally. After an app
+restart, unfinished work is marked interrupted; Use this goal starts a fresh
+attempt. Unknown write outcomes are marked uncertain for manual inspection;
+side effects are not replayed automatically. Project switching is blocked during
+work, and historical proposals require selecting their original project again.
+
+Current limits: 20 total model/tool steps, 10 minutes per task, 10 primary model
+turns, 6 helper turns, 5 file proposals. Reads: UTF-8, 64 KiB maximum per file,
+120 lines/6000 output characters per call. Existing replacement files must be
+small (6000 characters); proposed content is limited to 12000 characters.
+Discovery covers at most 200 entries and four directory levels; use a narrower
+directory when results are truncated. New files require an existing parent.
+Generated folders, common credentials, model weights, symlinks and junctions are
+excluded. This is application-level path control, not an OS sandbox against
+another process maliciously replacing directories during an approved write.
+
+No terminal, test runner, network browsing, autonomous writes, background daemon,
+parallel inference, MCP connector or scheduled automation is provided yet.
+Task instructions are separate from the chat assistant's instructions.
 
 AVAILABLE NOW
 
@@ -90,14 +128,15 @@ model management and settings are not controlled by AirloBot. Offline mode is
 an application-level network restriction for AirloBot's model-library features,
 not an operating-system firewall or a change to other applications.
 
-data/state.json contains local conversation history and preferences in readable
+data/state.json contains local conversation history, task activity, source excerpts,
+file proposals and preferences in readable
 JSON. It is not encrypted. data/electron-profile contains Chromium preferences
 and cache. This data is excluded from the Windows package. Keep the data folder
 when updating the application if you want to retain your conversations.
 
 VALIDATION
 
-npm test: 10 passing tests covering local-only request routing, Hub redirects,
+npm test: 18 passing tests covering local-only request routing, Hub redirects,
 path confinement, split UTF-8 streaming, offline mode, persistence, cancellation,
 duplicate sends, resumed downloads, and rejection of corrupted model data.
 
@@ -106,6 +145,12 @@ mode enabled; actual Hugging Face search; a 1,185,376-byte public GGUF download
 with SHA-256 verification; conversation restoration after restart. Results in
 test-results/live-report.json. The small test model is retained only inside
 test-results and is not the selected chat model.
+
+scripts/agent-live-test.mjs: Real local Gemma read a disposable project, created a
+reviewer helper, diagnosed an addition bug, and proposed a correction in 18 steps.
+The test checked that the file stayed unchanged until the host review operation
+applied it. Offline mode was enabled. Results: test-results/agent-live-report.json.
+This small successful fixture is not a general agent-reliability benchmark.
 
 scripts/tool-probe.mjs: Three synthetic tool-call protocol checks against the
 local Gemma model passed. No requested tool executes. The denial response still
@@ -128,6 +173,7 @@ Requires Node >=22.12 and the existing LM Studio runtime/lms installation.
   npm start
   npm test
   npm run test:live
+  npm run test:agents
   npm run package
 
 The package command creates release/AirloBot-win32-x64. It does not overwrite an
@@ -137,12 +183,16 @@ an update. For this workstation, Node 22.23.4 also exists under the parent REA
 
 SOURCE MAP
 
-electron/core.mjs       Local engine, stream handling, storage, model downloads.
+electron/core.mjs       Local engine, storage, model library and task lifecycle.
+electron/agents.mjs     Bounded local tool loop and helper delegation.
+electron/project.mjs    Project file access and reviewed writes.
 electron/main.cjs       Window, local asset protocol, IPC validation, file picker.
 electron/preload.cjs    Explicit renderer capabilities.
 src/main.jsx           Conversation, library and settings UI.
+src/Tasks.jsx          Project tasks, helper status, results and change review.
 src/style.css          Original AirloBot visual design.
-test/core.test.mjs     Meaningful service and download tests.
+test/core.test.mjs     Service and download tests.
+test/agents.test.mjs   File boundaries, tools, delegation and task lifecycle.
 scripts/               Live tests and repeatable icon generation.
 assets/                Original AirloBot application icons.
 
@@ -162,9 +212,9 @@ See CONTRIBUTING.txt for branch, review, testing and release practices.
 See docs/RESEARCH_NOTES.txt for Grok Bot research and source links.
 See docs/AGENT_ROADMAP.txt for the ordered local-agent implementation plan.
 
-Next: validated tool calling, durable task state and a primary agent that creates
-bounded helpers using the same local model. This release still provides chat
-and a model library; autonomous tools and delegation are not implemented yet.
+v0.3 adds project tools, bounded helper agents, saved task history and reviewed
+file proposals. Next: a constrained test runner, larger-file patches, stronger
+model evaluations, task memory and more robust job storage.
 
 REFERENCE DOCUMENTATION CONSULTED
 

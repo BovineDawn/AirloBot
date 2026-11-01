@@ -1600,3 +1600,76 @@ input[type=range] { accent-color:#ccc; }
 :root[data-theme=glass] .theme-option.selected { background:#ffffff09; }
 :root[data-reduced-motion=true] *, :root[data-reduced-motion=true] *::before, :root[data-reduced-motion=true] *::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
+
+/* Project tasks and local delegation. */
+.tasks-page { max-width:1240px; }
+.tasks-page>.page-subtitle { margin:14px 0 26px; color:var(--muted); }
+.task-surface { background:var(--surface); border:1px solid var(--line); border-radius:12px; }
+.project-picker { display:flex; align-items:center; gap:15px; padding:20px; margin-bottom:18px; }
+.project-picker>div { flex:1; min-width:0; }
+.project-picker strong { font-size:14px; font-weight:550; }
+.project-picker p { font-size:11px; color:var(--muted); margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.task-composer { padding:20px; }
+.task-composer label { display:block; font-size:13px; margin-bottom:13px; }
+.task-composer textarea { width:100%; min-height:88px; padding:13px; line-height:1.6; resize:vertical; }
+.task-presets { display:flex; gap:8px; margin:10px 0 19px; }
+.task-presets button { padding:6px 10px; background:#ffffff06; border:1px solid var(--line); border-radius:7px; color:#bbb; font-size:11px; }
+.task-presets button:hover { background:#ffffff10; }
+.task-composer-actions { display:flex; align-items:center; justify-content:space-between; gap:15px; }
+.task-model { display:flex; align-items:center; gap:8px; min-width:0; color:#bbb; }
+.task-model select { max-width:340px; width:100%; padding:8px; font-size:11px; }
+.task-note { font-size:10px; color:var(--muted); margin-top:13px; }
+.task-workspace { display:grid; grid-template-columns:190px minmax(0,1fr); gap:24px; margin-top:32px; }
+.task-history { min-width:0; }
+.task-history .section-title { margin:0 0 12px; }
+.task-history-item { display:block; width:100%; text-align:left; padding:13px 12px; margin-bottom:7px; border:1px solid transparent; border-radius:8px; }
+.task-history-item:hover { background:#ffffff06; }
+.task-history-item.selected { background:#ffffff09; border-color:var(--line); }
+.task-history-item strong { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; font-weight:450; font-size:11px; line-height:1.6; }
+.task-history-item span { display:block; font-size:9px; color:var(--muted); margin-top:7px; }
+.task-detail { min-width:0; }
+.task-heading { display:flex; gap:15px; align-items:flex-start; margin-bottom:18px; }
+.task-heading>div { flex:1; min-width:0; }
+.task-heading h2 { font-size:16px; line-height:1.6; overflow-wrap:anywhere; }
+.task-heading p { color:var(--muted); font-size:10px; margin-top:8px; }
+.task-heading>button { flex-shrink:0; }
+.task-status { text-transform:capitalize; color:#ddd; }
+.task-empty { padding:38px 26px; text-align:center; }
+.task-empty svg { color:#bbb; margin-bottom:16px; }
+.task-empty h2 { font-size:18px; margin-bottom:14px; }
+.task-empty p { color:var(--muted); font-size:12px; line-height:1.8; margin-top:12px; }
+.agent-cards { display:flex; flex-wrap:wrap; gap:10px; margin:18px 0; }
+.agent-card { flex:1; min-width:140px; padding:13px; }
+.agent-card[open] { flex-basis:100%; }
+.agent-card summary { display:flex; align-items:center; gap:10px; cursor:pointer; }
+.agent-card summary strong { font-size:12px; font-weight:500; }
+.agent-card small { display:block; margin-top:4px; font-size:10px; text-transform:capitalize; color:var(--muted); }
+.agent-card>p { margin:16px 0; font-size:11px; line-height:1.6; color:var(--muted); }
+.agent-card .markdown { font-size:12px; }
+.task-result { padding:22px; margin:18px 0; overflow-wrap:anywhere; }
+.task-result .section-title { margin:0 0 14px; }
+.task-result .markdown { font-size:13px; line-height:1.8; }
+.task-result .markdown pre { max-width:100%; overflow:auto; }
+.task-activity { padding:15px; margin-top:20px; }
+.task-activity>summary { cursor:pointer; font-size:12px; }
+.task-activity>summary>span { float:right; color:var(--muted); font-size:10px; }
+.activity-list { max-height:370px; overflow:auto; margin-top:14px; }
+.activity-list>details { padding:9px 0; border-top:1px solid var(--line); }
+.activity-list summary { display:flex; align-items:center; gap:10px; cursor:pointer; font-size:10px; }
+.activity-list summary>span { color:var(--muted); min-width:80px; }
+.activity-list summary>strong { font-weight:450; }
+.activity-list time { margin-left:auto; color:var(--muted); font-size:9px; }
+.activity-list pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:10px; line-height:1.7; padding:12px; color:#bbb; }
+.task-proposals>.section-title { margin:25px 0 12px; }
+.proposal { padding:16px; margin-bottom:12px; }
+.proposal>summary { display:flex; align-items:center; gap:9px; cursor:pointer; }
+.proposal>summary strong { font-size:12px; font-weight:500; overflow-wrap:anywhere; }
+.proposal>summary>span { margin-left:auto; color:var(--muted); font-size:10px; }
+.proposal>p { margin:15px 0; color:var(--muted); font-size:12px; line-height:1.7; }
+.file-compare { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.file-compare h3 { font-size:11px; padding:9px; background:#ffffff09; border-radius:7px 7px 0 0; }
+.file-compare pre { padding:10px; margin:0; background:#0004; max-height:350px; overflow:auto; font-size:11px; line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere; }
+.proposal-actions { display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-top:18px; }
+.proposal-actions>span { margin-right:auto; font-size:10px; color:var(--muted); }
+:root[data-theme=glass] .task-surface { background:linear-gradient(135deg,#ffffff07,transparent 65%),var(--surface); backdrop-filter:blur(var(--glass-blur)); border-color:#ffffff26; box-shadow:inset 0 1px 0 #ffffff10,0 8px 24px #0002; }
+@media(max-width:1150px) { .task-workspace { grid-template-columns:150px minmax(0,1fr); gap:16px; } .file-compare { grid-template-columns:1fr; } .task-model select { max-width:270px; } }

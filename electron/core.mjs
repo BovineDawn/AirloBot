@@ -5,6 +5,8 @@ import os from 'node:os';
 import { randomUUID, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { ProjectFiles } from './project.mjs';
+import { AgentRunner, makeTask } from './agents.mjs';
 
 export const MODEL = 'gemma-4-e4b-uncensored-hauhaucs-aggressive';
 export const LOCAL_ORIGIN = 'http://127.0.0.1:1234';
@@ -87,14 +89,22 @@ export class AirloService {
     this.dataDir = dataDir; this.emit = emit; this.options = options;
     this.modelDir = path.join(dataDir, 'models');
     this.lmsPath = options.lmsPath || path.join(os.homedir(), '.lmstudio', 'bin', 'lms.exe');
-    this.state = { version: 1, settings: { ...DEFAULT_SETTINGS }, conversations: [], downloads: [] };
+    this.state = { version: 2, settings: { ...DEFAULT_SETTINGS }, conversations: [], downloads: [], project: null, tasks: [] };
     this.downloadJobs = new Map(); this.activeChat = null; this.saveChain = Promise.resolve();
+    this.activeTask = null; this.agentPromise = null; this.reviewing = false;
   }
   async init() {
     await fs.mkdir(this.modelDir, { recursive: true });
     try { this.state = { ...this.state, ...JSON.parse(await fs.readFile(path.join(this.dataDir, 'state.json'), 'utf8')) }; }
     catch (e) { if (e.code !== 'ENOENT') throw new Error('AirloBot could not read saved data. It has not overwritten it. ' + cleanError(e)); }
     this.state.settings = { ...DEFAULT_SETTINGS, ...this.state.settings };
+    this.state.version = 2;
+    this.state.tasks ||= [];
+    for (const task of this.state.tasks) {
+      if (task.status === 'running') { task.status = 'interrupted'; task.error = 'AirloBot closed during this task. Run it again to start a fresh attempt.'; }
+      for (const agent of task.agents) if (['running', 'waiting'].includes(agent.status)) agent.status = 'interrupted';
+      for (const proposal of task.proposals) if (proposal.status === 'applying') { proposal.status = 'uncertain'; proposal.error = 'Interrupted while applying. Inspect the file before proposing another change.'; }
+    }
     // Update only the former stock identity; never rewrite a user's instructions.
     if (this.state.settings.systemPrompt === DEFAULT_SETTINGS.systemPrompt.replace('AirloBot', 'CrocBot')) this.state.settings.systemPrompt = DEFAULT_SETTINGS.systemPrompt;
     if (!['graphite', 'midnight', 'glass'].includes(this.state.settings.theme)) this.state.settings.theme = 'graphite';
@@ -104,7 +114,7 @@ export class AirloService {
     for (const d of this.state.downloads) if (['downloading', 'verifying', 'importing'].includes(d.status)) d.status = 'paused';
     await this.save(); return this.snapshot();
   }
-  snapshot() { return structuredClone({ ...this.state, dataDir: this.dataDir, modelDir: this.modelDir, endpoint: LOCAL_ORIGIN, activeChat: this.activeChat?.conversationId || null }); }
+  snapshot() { return structuredClone({ ...this.state, dataDir: this.dataDir, modelDir: this.modelDir, endpoint: LOCAL_ORIGIN, activeChat: this.activeChat?.conversationId || null, activeTask: this.activeTask?.id || null, reviewing: this.reviewing }); }
   save() {
     const content = JSON.stringify(this.state, null, 2);
     const write = async () => {
@@ -115,6 +125,7 @@ export class AirloService {
   }
   changed() { this.emit({ type: 'state', state: this.snapshot() }); }
   async settings(patch) {
+    if (patch.model !== undefined && (this.activeTask || this.activeChat)) throw new Error('Stop the current work before changing models.');
     const s = { ...this.state.settings };
     if (patch.theme !== undefined) { if (!['graphite', 'midnight', 'glass'].includes(patch.theme)) throw new Error('Choose Graphite, Midnight, or Liquid Glass.'); s.theme = patch.theme; }
     if (patch.glassIntensity !== undefined) { if (!Number.isInteger(patch.glassIntensity) || patch.glassIntensity < 20 || patch.glassIntensity > 90) throw new Error('Glass intensity must be 20–90.'); s.glassIntensity = patch.glassIntensity; }
@@ -155,7 +166,7 @@ export class AirloService {
     throw new Error('The local server started but is not responding on port 1234.');
   }
   async loadModel(key) {
-    if (this.activeChat) throw new Error('Stop the current response before changing models.');
+    if (this.activeChat || this.activeTask) throw new Error('Stop the current work before changing models.');
     const status = await this.startRuntime();
     const model = status.models.find(m => m.key === key);
     if (!model) throw new Error('This model is not installed in the local runtime.');
@@ -165,7 +176,7 @@ export class AirloService {
     await this.settings({ model: key }); return this.status();
   }
   async unloadModel(key) {
-    if (this.activeChat) throw new Error('Stop the current response first.');
+    if (this.activeChat || this.activeTask) throw new Error('Stop the current work first.');
     const status = await this.status(); const m = status.models.find(m => m.key === key);
     for (const instance of m?.loaded_instances || []) await localFetch('/api/v1/models/unload', { method: 'POST', body: JSON.stringify({ instance_id: instance.id }), signal: AbortSignal.timeout(30000) });
     return this.status();
@@ -179,6 +190,7 @@ export class AirloService {
     this.state.conversations = this.state.conversations.filter(c => c.id !== id); await this.save(); this.changed();
   }
   async send({ conversationId, content }) {
+    if (this.activeTask) throw new Error('Wait for the project task or stop it before starting a chat response.');
     if (this.activeChat) throw new Error('A response is already running. Stop it or wait for it to finish.');
     if (typeof content !== 'string' || !content.trim() || content.length > 24000) throw new Error('Enter a message under 24,000 characters.');
     const c = this.state.conversations.find(c => c.id === conversationId);
@@ -221,6 +233,56 @@ export class AirloService {
     finally { answer.elapsedMs = Date.now() - started; c.updatedAt = now(); this.activeChat = null; await this.save(); this.changed(); }
   }
   stopChat() { this.activeChat?.controller.abort(); }
+  async selectProject(root) {
+    if (this.activeTask || this.reviewing) throw new Error('Stop the task before changing projects.');
+    const files = await ProjectFiles.open(root);
+    if (this.activeTask || this.reviewing) throw new Error('Stop the task before changing projects.');
+    this.state.project = { name: path.basename(files.root), path: files.root };
+    await this.save(); this.changed(); return this.snapshot();
+  }
+  async startTask({ goal }) {
+    if (this.activeTask || this.activeChat || this.reviewing) throw new Error('Wait for the current work or stop it first.');
+    if (!this.state.project) throw new Error('Choose a project folder first.');
+    if (typeof goal !== 'string' || !goal.trim() || goal.length > 4000) throw new Error('Enter a task of 1–4000 characters.');
+    const task = makeTask(goal.trim(), this.state.project, this.state.settings.model);
+    const controller = new AbortController();
+    this.activeTask = { id: task.id, controller };
+    this.state.tasks.unshift(task);
+    const timer = setTimeout(() => controller.abort(), 600000);
+    const runner = new AgentRunner(task, {
+      signal: controller.signal,
+      changed: async () => { await this.save(); this.changed(); },
+      request: this.options.agentRequest || (async (body, signal) => (await localFetch('/v1/chat/completions', {
+        method: 'POST', body: JSON.stringify(body), signal: AbortSignal.any([signal, AbortSignal.timeout(120000)])
+      })).json())
+    });
+    try { await this.save(); this.changed(); }
+    catch (error) { clearTimeout(timer); this.activeTask = null; task.status = 'failed'; throw error; }
+    this.agentPromise = runner.run().catch(error => { task.status = 'failed'; task.error = cleanError(error); }).finally(async () => {
+      clearTimeout(timer); this.activeTask = null; await this.save(); this.changed();
+    });
+    return task.id;
+  }
+  stopTask(id) { if (id !== this.activeTask?.id) throw new Error('That task is not running.'); this.activeTask.controller.abort(); }
+  async reviewChange({ taskId, proposalId, decision }) {
+    if (this.activeTask || this.reviewing) throw new Error('Wait for the task or current file review to finish.');
+    if (!['apply', 'reject'].includes(decision)) throw new Error('Invalid review decision.');
+    const task = this.state.tasks.find(t => t.id === taskId), proposal = task?.proposals.find(p => p.id === proposalId);
+    if (!proposal || proposal.status !== 'pending') throw new Error('This proposal is no longer awaiting review.');
+    if (task.project.path !== this.state.project?.path) throw new Error('Select this task’s project folder before reviewing its changes.');
+    this.reviewing = true;
+    try {
+      if (decision === 'reject') proposal.status = 'rejected';
+      else {
+        const files = await ProjectFiles.open(task.project.path);
+        if (files.root !== task.project.path) throw new Error('Project location changed. Select it again.');
+        proposal.status = 'applying'; await this.save(); this.changed();
+        try { proposal.appliedHash = await files.apply(proposal); proposal.status = 'applied'; proposal.appliedAt = now(); delete proposal.error; }
+        catch (error) { proposal.status = 'pending'; proposal.error = cleanError(error); throw error; }
+      }
+    } finally { this.reviewing = false; await this.save(); this.changed(); }
+    return this.snapshot();
+  }
   requireOnline() { if (this.state.settings.offline) throw new Error('Offline mode is on. Disable it to browse or download from Hugging Face. Chat remains local in either mode.'); }
   async searchModels(query) {
     this.requireOnline();
@@ -316,5 +378,5 @@ export class AirloService {
     await this.runLms(['import', safeModelPath(this.modelDir, d.repo, d.filename), '--hard-link', '--user-repo', d.repo, '--yes'], 60000);
     d.imported = true; d.importError = null; await this.save(); this.changed();
   }
-  async shutdown() { this.stopChat(); for (const job of this.downloadJobs.values()) job.abort(); await this.save(); }
+  async shutdown() { this.stopChat(); this.activeTask?.controller.abort(); for (const job of this.downloadJobs.values()) job.abort(); await this.agentPromise; await this.save(); }
 }
