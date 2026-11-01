@@ -75,6 +75,29 @@ app.whenReady().then(async () => {
   await js('Array.from(document.querySelectorAll(".history-item")).find(b=>b.title==="Plan the project").click()'); await delay(90);
   assert.equal(await js('Boolean(document.querySelector(".markdown img") || window.fixtureUnsafe)'), false);
   await click('Continue response →'); assert.ok(calls.some(c => c.method === 'send' && c.arg.content.startsWith('Continue your previous response')));
+  // Token events, late layout and user scroll intent all exercise the real UI.
+  const streamed = state.conversations[0].messages[1];
+  streamed.status = 'streaming'; streamed.finishReason = null;
+  const token = async text => { streamed.content += text; win.webContents.send('ui-event',{type:'token',conversationId:'chat1',message:streamed}); await delay(65); };
+  const gap = () => js('(()=>{const n=document.querySelector(".transcript-scroll");return n.scrollHeight-n.scrollTop-n.clientHeight;})()');
+  await token('\n\n' + 'Streaming paragraph with enough text to wrap across the conversation pane.\n\n'.repeat(60));
+  assert.ok(await gap() < 3, 'New streamed content should follow the bottom');
+  for(let i=0;i<8;i++) await token('More streamed output.\n\n'.repeat(8));
+  assert.ok(await gap() < 3, 'Long bursts must not disable following');
+  await js('(()=>{const n=document.querySelector(".transcript-scroll");n.scrollTop=100;n.dispatchEvent(new Event("scroll"));})()'); await delay(90);
+  assert.equal(await js('Boolean(document.querySelector(".jump-latest"))'),true,'Scroll-up should reveal Jump to latest');
+  const readingPosition = await js('document.querySelector(".transcript-scroll").scrollTop');
+  await token('New output while reading history.\n\n'.repeat(15));
+  const afterTokenPosition = await js('document.querySelector(".transcript-scroll").scrollTop');
+  assert.ok(Math.abs(afterTokenPosition - readingPosition) < 2, `Reading earlier messages should stay put: ${readingPosition} -> ${afterTokenPosition}`);
+  await click('Jump to latest'); assert.ok(await gap() < 3);
+  // No token or React state event: expanding reasoning/layout should still follow.
+  await js('document.querySelector(".chat-transcript").style.paddingBottom="550px"'); await delay(100);
+  assert.ok(await gap() < 3, 'Late content layout should follow');
+  win.setSize(1100,700); await delay(150); assert.ok(await gap() < 3, 'Window resizing should keep the latest text visible');
+  await js('document.querySelector(".chat-transcript").style.paddingBottom=""');
+  win.setSize(1440,900); streamed.content='A short completed reply.'; streamed.status='complete'; emit(); await delay(90);
+  report.push({check:'stream following, scroll-up preservation, jump to latest, late layout and resize',passed:true});
   await js('Array.from(document.querySelectorAll(".history-item")).find(b=>b.title.startsWith("Review the project")).click()'); await delay(90);
   assert.equal(await js('Boolean(document.querySelector(".detail-panel"))'), false);
   await draft('Follow up on this project'); await click('Send');
