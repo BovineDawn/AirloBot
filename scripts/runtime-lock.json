@@ -1,0 +1,10 @@
+{
+  "engine": "llama.cpp",
+  "release": "b11960",
+  "stableRelease": "v0.8.0",
+  "platform": "win32-x64",
+  "asset": "llama-b11960-bin-win-vulkan-x64.zip",
+  "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11960/llama-b11960-bin-win-vulkan-x64.zip",
+  "sha256": "bac6914b5e83523eb008c6789eaa12669f93fbc196c3b9e8237b6672323b33e9",
+  "license": "https://raw.githubusercontent.com/ggml-org/llama.cpp/b11960/LICENSE"
+}

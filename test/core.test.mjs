@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { AirloService, DEFAULT_SETTINGS, validateRepo, safeModelPath, isHubURL, localFetch, hubFetch, sseJSON } from '../electron/core.mjs';
+import { AirloService, DEFAULT_SETTINGS, validateRepo, safeModelPath, isHubURL, hubFetch, sseJSON } from '../electron/core.mjs';
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
 async function until(fn) { for (let i = 0; i < 100; i++) { if (fn()) return; await delay(20); } throw new Error('Timed out'); }
@@ -16,7 +16,7 @@ async function fixture(t) {
     assert.ok(path.resolve(dir).startsWith(root + path.sep));
     await fs.rm(dir, { recursive: true, force: true });
   });
-  const service = new AirloService(dir, () => {}, { importModels: false }); await service.init(); return service;
+  const service = new AirloService(dir, () => {}, { importModels: false, runtime: { fetch: (route, options) => fetch('http://127.0.0.1:29801' + route, options), stop: async () => {}, status: async () => ({ connected: false }) } }); await service.init(); await service.settings({ offline: false }); return service;
 }
 
 test('GGUF paths cannot escape the library or use Windows alternate streams', () => {
@@ -30,13 +30,6 @@ test('Hub redirects stay on HTTPS Hugging Face download hosts', async t => {
   const original = global.fetch; t.after(() => { global.fetch = original; });
   global.fetch = async () => new Response(null, { status: 302, headers: { location: 'https://evil.example/model' } });
   await assert.rejects(hubFetch('https://huggingface.co/owner/model'), /restricted/);
-});
-test('inference requests always use a fixed loopback origin and reject redirects', async t => {
-  const original = global.fetch; t.after(() => { global.fetch = original; });
-  global.fetch = async (url, options) => { assert.equal(url, 'http://127.0.0.1:1234/v1/models'); assert.equal(options.redirect, 'error'); return Response.json({ data: [] }); };
-  await localFetch('/v1/models');
-  await assert.rejects(localFetch('//cloud.example/v1/models'), /Invalid/);
-  await assert.rejects(localFetch('https://cloud.example'), /Invalid/);
 });
 test('SSE handles split UTF-8 tokens, CRLF and done frames', async () => {
   const bytes = new TextEncoder().encode('data: {"text":"airlo 🤖"}\r\n\r\ndata: {"n":2}\n\ndata: [DONE]\n\n');

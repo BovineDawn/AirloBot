@@ -1,7 +1,7 @@
 // Scan Git objects, never local conversation files. Report filenames, not secrets.
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-const privatePath = /(^|\/)(data|user-data|test-results|release|electron-profile|models|logs|backups|screenshots|captures|node_modules|\.ssh|\.aws|\.codex|\.agents)(\/|$)|(^|\/)(state\.json(?:\.tmp)?|conversations\.json|drafts\.json|history\.json|\.env(?:\..*)?)$|\.(gguf|safetensors|pem|key|pfx|p12|sqlite3?|db|log|dmp|heapsnapshot)$/i;
+const privatePath = /(^|\/)(data|user-data|test-results|release|native|electron-profile|models|logs|backups|screenshots|captures|node_modules|\.ssh|\.aws|\.codex|\.agents)(\/|$)|(^|\/)(state\.json(?:\.tmp)?|conversations\.json|drafts\.json|history\.json|\.env(?:\..*)?)$|\.(gguf|safetensors|pem|key|pfx|p12|sqlite3?|db|log|dmp|heapsnapshot)$/i;
 export const isPrivatePath = name => privatePath.test(name.replaceAll('\\', '/')) && !/(^|\/)\.env\.example$/.test(name);
 export function contentRisks(text) {
   const rules = {

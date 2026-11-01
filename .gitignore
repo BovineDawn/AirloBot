@@ -35,3 +35,4 @@ history.json
 *.dmp
 *.heapsnapshot
 *.safetensors
+native/
