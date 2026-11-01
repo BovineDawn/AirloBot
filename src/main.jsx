@@ -74,7 +74,7 @@ function App() {
   async function inspect(id) { setFinding(true); setError(''); try { setRepo(await api.modelFiles(id)); } catch (e) { setError(e.message); } finally { setFinding(false); } }
   if (!state) return <div className="boot"><Robot size={60}/><h2>AirloBot</h2><p>{error || 'Opening your local workspace…'}</p></div>;
   const selected = status.models.find(m => m.key === state.settings.model);
-  const loaded = Boolean(selected?.loaded_instances?.length);
+  const loaded = Boolean(status.connected && selected?.loaded_instances?.length);
   const transfer = state.downloads.find(d => ['downloading', 'verifying', 'importing'].includes(d.status));
 
   return <div className="app-shell">
@@ -97,7 +97,7 @@ function App() {
     </aside>
     <main>
       <header className="topbar"><div className="breadcrumb">Workspace <span>/</span><strong>{view === 'tasks' ? 'Project tasks' : view === 'chat' ? 'Conversation' : view === 'library' ? 'Model library' : 'Settings'}</strong></div>
-        <div className="top-actions">{state.settings.offline && <Badge><WifiOff size={12}/> Offline mode</Badge>}<span className={'connection ' + (status.connected ? 'online' : '')}><span/>{status.connected ? 'Local engine connected' : 'Local engine offline'}</span><button className="icon-button" aria-label="Refresh local connection" onClick={() => attempt('refresh', refresh)}><RefreshCw size={15} className={busy === 'refresh' ? 'spin' : ''}/></button></div></header>
+        <div className="top-actions">{state.settings.offline && <Badge><WifiOff size={12}/> Offline mode</Badge>}<span className={'connection ' + (loaded ? 'online' : 'offline')} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true"/>{loaded ? 'Local engine connected' : status.connected ? 'No model connected' : 'Local engine offline'}</span><button className="icon-button" aria-label="Refresh local connection" onClick={() => attempt('refresh', refresh)}><RefreshCw size={15} className={busy === 'refresh' ? 'spin' : ''}/></button></div></header>
       {error && <div className="error-banner" role="alert"><CircleHelp size={17}/><span>{error}</span><button className="icon-button" aria-label="Dismiss error" onClick={() => setError('')}><X size={16}/></button></div>}
       {view === 'tasks' && <Tasks state={state} status={status} busy={busy} attempt={attempt} refresh={refresh}/>}
       {view === 'chat' && <div className="chat-view">
