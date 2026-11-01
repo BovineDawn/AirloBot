@@ -95,3 +95,21 @@ v0.8.0: Catalog popularity/update/file-size metrics, page-level memory compariso
 visible device guidance, checked variant suggestions, and Settings category panels.
 The library UI test covers category draft retention and all three themes; captures
 force a repaint before saving. All fixtures and product images remain synthetic.
+
+v0.8.1: Project creation recovery, grounded continuation context, pending folder
+support across turns, actionable directory/missing-file reads, and chat following.
+Run npm run test:project-build -- <local-GGUF-path> for a natural-language folder
+then Python GUI calculator request. It uses an isolated offline service, verifies
+that the model does not write, then explicitly applies disposable test proposals.
+It tests file creation, not generated code quality. Review generated source before
+running it; Python GUI execution and arithmetic checks are separate acceptance steps.
+The Focus renderer test covers streaming, scroll-up preservation, Jump to latest,
+late layout and resizing. Runtime state and generated examples stay in test-results.
+
+0.8.1 acceptance (Windows, 2026-11-01): 59 unit tests and the Focus renderer suite
+passed. A local Gemma run completed the exact natural-language folder/calculator
+sequence with real proposals and explicit reviewed writes. The generated calculator
+needed agent follow-ups to fix a Tkinter startup error; the repaired program passed
+button-driven arithmetic, decimal, precedence, clear, zero-division, grid overlap,
+and AST-call rejection checks. Generated-code correctness is still model-dependent.
+The packaged ASAR was checked against source and audited for excluded runtime data.

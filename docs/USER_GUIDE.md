@@ -1,6 +1,6 @@
 # AirloBot user guide
 
-AirloBot 0.8 is a standalone Windows desktop preview. See the [README](../README.md#get-started) for installation.
+AirloBot 0.8.1 is a standalone Windows desktop preview. See the [README](../README.md#get-started) for installation.
 
 ## Local engine and models
 
@@ -48,13 +48,17 @@ The progress row describes the current action. **Read local files** lists actual
 
 Helpers use the same local model, separate contexts, and read-only tools. Up to two run sequentially per submitted turn. Their suggestions cannot authorize writes or override user instructions. Models can still make mistakes; inspect the actual proposals.
 
-Follow-ups include recent goals, results, change states, and file references. Up to six recent turns are shortened to fit the context budget; older history remains saved. Files must be read again before editing because prior evidence can become stale.
+Follow-ups include recent goals, results, and recorded change states. Up to six recent turns are shortened to fit the context budget; older history remains saved. Common continuations such as “proceed” retain the last objective, with earlier build/folder instructions pinned separately. Prior model replies are unverified narrative, not evidence that files exist. Files must be read again before editing because prior evidence can become stale.
+
+The conversation follows new text while you are at the bottom. Scroll up to pause following, then choose **Jump to latest** or scroll back to the bottom to resume. Sending a new message also returns to the latest text.
 
 ## Reviewed folders and document edits
 
 Try: “Read README.md, create a docs folder, and write a summary in docs/overview.md.”
 
 Open **Review changes**, inspect paths and before/after text, then choose **Apply change** or **Reject**. Apply folder proposals before dependent files. Approvals target the conversation's original folder even if the picker has since changed. Model tools never apply writes themselves.
+
+The agent can prepare folders and files in one turn; preparing files does not require applying their folder first. Pending folders also remain available for proposals in follow-ups. For recognized creation requests, folder-only results or code pasted into chat trigger up to two recovery requests. If the model still does not prepare the requested artifact, the task reports **Needs attention** with **Continue saved work**. This catches missing proposals, not every defect in generated code; inspect and test code after review.
 
 Targeted edits replace one uniquely matching passage after it has been read. Unrelated text stays unchanged, and CRLF line endings are preserved. Entire replacements require reading the full current file; reading can span multiple pages. Proposals are rejected if the source changed after reading.
 
@@ -73,7 +77,7 @@ Editing supports UTF-8 text, Markdown, and source/configuration files. Word, PDF
 | New/replacement content | 24,000 characters | Use targeted edits for larger existing files. |
 | Proposals | 20 per submitted turn | Every change requires review. |
 
-Stop cancels parent and helper work. Six identical tool exchanges with unchanged results stop a loop. Empty replies receive at most two recovery requests. The latest 500 activity events per turn are kept; results and proposals remain saved.
+Stop cancels parent and helper work. Six identical tool exchanges with unchanged results stop a loop. Empty replies and truncated replies each receive at most two recovery requests. Truncated tool calls are discarded, and the model is asked for smaller complete files. The latest 500 activity events per turn are kept; results and proposals remain saved.
 
 **Continue saved work** submits a follow-up after a stop, failure, limit, or restart using saved findings. It does not restore an exact in-flight model execution or replay writes. Interrupted writes are marked uncertain for inspection.
 

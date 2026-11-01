@@ -7,7 +7,7 @@
 <p align="center"><strong>An agent workspace powered by your local models.</strong></p>
 
 <p align="center">
-  Windows desktop · Local inference · Version 0.8 preview
+  Windows desktop · Local inference · Version 0.8.1 preview
 </p>
 
 <p align="center">
@@ -34,7 +34,7 @@ AirloBot brings local chat, project tools, and helper agents into one desktop wo
 - **Make reviewed changes.** Create folders and text documents, edit a precise passage, and apply, reject, or undo changes with protection against overwriting newer work.
 - **Build a model library.** Add a local GGUF or browse public Hugging Face repositories, with download progress, pause/resume, and SHA-256 verification.
 - **Check memory fit privately.** Opt in to a local hardware snapshot, compare a selected model at your context setting, and choose from a few clear download variants. Hardware details stay in memory on your device.
-- **Keep your place.** Saved drafts, searchable recent work, and confirmed task/chat deletion keep the workspace manageable.
+- **Keep your place.** Responses follow new text automatically. Scroll up to read earlier messages, then use Jump to latest to resume. Drafts and recent work stay saved locally.
 - **Choose your finish.** Light, Dark, and macOS-inspired Liquid Glass include motion and transparency controls.
 
 ## Get started
@@ -87,6 +87,8 @@ Need more room? **Settings → Project tasks** offers **Unlimited turns** and **
 ### Review the change before it reaches your files
 
 Task results stay in the main workspace. Open **Review changes** to see the changed lines, expand the full before/after text, and choose **Apply change** or **Reject**. Nothing is applied by a model tool itself. Applied changes offer Undo; newer edits are preserved if a conflict is detected.
+
+For build requests, the agent can prepare a folder and its source files together. Follow-ups such as “proceed” retain the build objective. AirloBot retries missing file proposals and reports incomplete work if the model only provides instructions; code pasted into chat is never treated as a saved file.
 
 ![Dark theme with a proposed file change, readable diff, and explicit Apply and Reject controls](docs/media/review-dark.png)
 
