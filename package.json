@@ -1,0 +1,27 @@
+{
+  "name": "crocbot",
+  "productName": "CrocBot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A local-only desktop assistant and GGUF model library.",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "build": "vite build",
+    "start": "electron .",
+    "test": "node --test test/*.test.mjs",
+    "test:live": "node scripts/live-test.mjs",
+    "package": "npm run build && electron-packager . CrocBot --platform=win32 --arch=x64 --out=release --icon=assets/crocbot.ico --ignore=^/release --ignore=^/data --ignore=^/test --ignore=^/scripts --ignore=^/src --ignore=^/test-results"
+  },
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "lucide-react": "^0.468.0",
+    "react-markdown": "^10.1.0"
+  },
+  "devDependencies": {
+    "electron": "45.2.1",
+    "vite": "8.3.5",
+    "@electron/packager": "^19.0.1"
+  }
+}
