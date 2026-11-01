@@ -49,7 +49,15 @@ test('GGUF registration validates metadata, rejects malformed files and retains 
   assert.equal(model.architecture, 'fixture'); assert.equal(model.path, await fs.realpath(file)); assert.equal(service.state.models.length, 1);
   await service.registerModel(file); assert.equal(service.state.models.length, 1); assert.deepEqual(await fs.readFile(file), bytes);
   await fs.writeFile(path.join(root, 'bad.gguf'), 'GGUFbad'); await assert.rejects(inspectModel(path.join(root, 'bad.gguf')));
-  const restarted = new AirloService(service.dataDir); await restarted.init(); assert.equal(restarted.state.models[0].path, model.path); await restarted.shutdown();
+  await fs.writeFile(path.join(root, 'unregistered.gguf'), bytes);
+  await fs.writeFile(path.join(service.modelDir, 'library.gguf'), bytes);
+  service.state.modelMigrationDone = false; await service.save();
+  const restarted = new AirloService(service.dataDir); await restarted.init();
+  assert.equal(restarted.state.models[0].path, model.path);
+  assert.equal(restarted.state.settings.model, model.key, 'Keep the explicitly registered external model selected');
+  assert.equal(restarted.state.models.length, 2, 'Discover only the app-owned library; never scan nearby external files');
+  assert.ok(restarted.state.models.some(m => m.path === path.join(service.modelDir, 'library.gguf')));
+  await restarted.shutdown();
 });
 
 test('paged discovery reaches deep folders and paged reads authorize exact edits in large files', async t => {

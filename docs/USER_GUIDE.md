@@ -4,13 +4,13 @@ AirloBot 0.6 is a standalone Windows desktop preview. See the [README](../README
 
 ## Local engine and models
 
-AirloBot bundles and manages llama.cpp. LM Studio is not required. Source checkouts install the pinned Windows Vulkan/CPU engine explicitly with `npm run runtime:install`. Packages already include it; the app never downloads executable updates itself.
+AirloBot bundles and manages llama.cpp. No separate model application or server is required. Source checkouts install the pinned Windows Vulkan/CPU engine explicitly with `npm run runtime:install`. Packages already include it; the app never downloads executable updates itself.
 
 1. Open **Model library → Add local GGUF** and select a model.
 2. Choose **Use model**. AirloBot starts its own engine and loads the file directly.
 3. Confirm that **Local engine connected** is green.
 
-GGUF files stay in their original location, including on another drive. During migration, AirloBot discovers compatible files in the standard `.lmstudio/models` folder and its own library once. This is local file discovery only: it never launches LM Studio or calls its API. Use Add local GGUF for files elsewhere or added later.
+GGUF files stay in their original location, including on another drive. Already-registered models are preserved during upgrades. AirloBot discovers compatible files in its own library once; it does not scan other applications' folders. Use Add local GGUF to register files elsewhere or added later. If upgrading from a version without a model registry, add your existing GGUF once.
 
 The existing Gemma 4 E4B model is a compatibility target. Other models require supported architectures/templates; agents also need reliable tool calling. Downloading a model does not guarantee compatibility or enough available memory.
 

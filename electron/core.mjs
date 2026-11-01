@@ -10,9 +10,8 @@ import { DEFAULT_TASK_BUDGET, TaskLimitError, validTaskTurns, validTaskMinutes }
 import { LocalRuntime } from './runtime.mjs';
 import { inspectModel, discoverModelFiles } from './model-files.mjs';
 
-export const MODEL = 'gemma-4-e4b-uncensored-hauhaucs-aggressive';
 export const DEFAULT_SETTINGS = {
-  model: MODEL, temperature: 0.65, maxTokens: -1, offline: true, contextTokens: 16384, acceleration: 'auto',
+  model: '', temperature: 0.65, maxTokens: -1, offline: true, contextTokens: 16384, acceleration: 'auto',
   theme: 'dark', glassIntensity: 60, reducedMotion: false, reducedTransparency: false,
   taskMaxTurns: DEFAULT_TASK_BUDGET.maxTurns, taskMaxMinutes: DEFAULT_TASK_BUDGET.maxMinutes,
   systemPrompt: 'You are AirloBot, a helpful assistant running locally on this computer. Be clear, practical, and honest about uncertainty. You have no web access or computer tools. Do not claim to perform actions you cannot perform.'
@@ -119,9 +118,9 @@ export class AirloService {
     if (typeof this.state.settings.reducedTransparency !== 'boolean') this.state.settings.reducedTransparency = false;
     for (const c of this.state.conversations) for (const m of c.messages) if (m.status === 'streaming') m.status = 'interrupted';
     for (const d of this.state.downloads) if (['downloading', 'verifying', 'importing'].includes(d.status)) d.status = 'paused';
-    // One-time, local migration: reference existing GGUFs without copying or moving them.
-    if (this.options.legacyModelDir && !this.state.modelMigrationDone) {
-      const candidates = new Set([...await discoverModelFiles(this.options.legacyModelDir), ...await discoverModelFiles(this.modelDir)]);
+    // Discover AirloBot's own library once; explicitly added external files stay registered.
+    if (!this.state.modelMigrationDone) {
+      const candidates = await discoverModelFiles(this.modelDir);
       for (const filename of candidates) { try { const model = await inspectModel(filename); if (!this.state.models.some(m => m.key === model.key)) this.state.models.push(model); } catch {} }
       if (!this.state.models.some(m => m.key === this.state.settings.model) && this.state.models.length) {
         const old = this.state.settings.model.replace(/[^a-z0-9]/gi, '').toLowerCase();

@@ -1,5 +1,5 @@
 AIRLOBOT: FROM LOCAL CHAT TO LOCAL WORK
-Research and implementation plan | 2026-11-01 | Proposed, not shipped
+Research and implementation plan | 2026-11-01 | Backlog with v0.6 status below
 Repository: https://github.com/BovineDawn/AirloBot
 
 PRODUCT DIRECTION
@@ -17,12 +17,12 @@ Source: https://docs.x.ai/grok-bot/bots
 
 LOCAL DOES NOT MEAN ONE SESSION
 A helper is a separate instruction/context/task record, not another copy of the
-model. Initially every agent uses the same already-loaded Gemma GGUF through
-127.0.0.1:1234. A scheduler queues inference; independent filesystem or process
+model. Every agent uses the same loaded GGUF through AirloBot's authenticated
+loopback engine. A scheduler queues inference; independent filesystem or process
 work may overlap. Start with one generation at a time and benchmark before
 raising concurrency. Separate contexts do not provide process isolation.
 
-User -> Primary AirloBot -> Task scheduler -> Local LM Studio model
+User -> Primary AirloBot -> Task scheduler -> Bundled local model engine
                           |-> Research helper -> narrow tools -> evidence
                           |-> Builder helper  -> patch artifact
                           |-> Reviewer helper -> findings/test results
@@ -44,7 +44,8 @@ ORDERED IMPLEMENTATION BACKLOG
    Store model/runtime/quantization and measured results. Do not enable agent
    actions merely because a publisher labels a model as agentic.
    Done: reproducible fixture results and a selected local tool-calling model.
-   Source: https://lmstudio.ai/docs/developer/openai-compat/tools
+   Current implementation and acceptance checks: electron/agents.mjs and
+   scripts/standalone-live-test.mjs.
 
 2. Build a bounded tool loop and host permission checks together.
    First tools: list_files, read_file, search_text in a user-selected workspace.
@@ -114,14 +115,15 @@ Start with a deliberately small fixture repository and real local inference.
 Approval denial, cancellation, malformed tool output, restart and a helper
 failure must be demonstrated alongside the happy path.
 
-CURRENT BOUNDARY (updated for v0.3)
-v0.3 implements a bounded tool loop, project selection, read/search/list tools,
-up to two read-only helpers, saved JSON task history, cancellation, and small
-file proposals applied only through user review. Helpers take turns on one model.
-The real Gemma fixture completed its investigation/delegation/proposal in 18
-steps. Current storage is atomic JSON, not the proposed SQLite design.
+CURRENT BOUNDARY (updated for v0.6)
+v0.6 includes a bundled local engine, persistent project conversations, paged
+read/search/list tools, up to two read-only helpers, saved JSON task history,
+cancellation, reviewed folder/file creation and targeted text edits with undo.
+Helpers take turns on one model. The standalone model acceptance test covers
+delegation, a same-conversation follow-up, reviewed writes, undo and restart.
+Current storage is atomic JSON, not the proposed SQLite design.
 
-Still planned: test/command runner, worktree integration, larger-file patches,
-SQLite jobs and richer recovery, token-aware retrieval, persistent agent profiles,
-MCP tools and schedules. The original milestone's automatic test-running portion
-is not shipped. See README.txt for the exact limits of this first agent release.
+Still planned: test/command runner, worktree integration, SQLite jobs and richer
+recovery, token-aware retrieval, persistent agent profiles, MCP tools and schedules.
+The original milestone's automatic test-running portion is not shipped.
+See README.md and docs/USER_GUIDE.md for the current limits.

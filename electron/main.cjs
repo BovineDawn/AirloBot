@@ -1,6 +1,5 @@
 const { app, BrowserWindow, ipcMain, protocol, session, dialog, shell } = require('electron');
 const path = require('node:path');
-const os = require('node:os');
 const fs = require('node:fs/promises');
 let win, service;
 app.setName('AirloBot');
@@ -26,8 +25,7 @@ if (primaryInstance) app.whenReady().then(async () => {
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !/^(airlobot:|devtools:)/.test(details.url) }));
   const dataDir = process.env.AIRLOBOT_DATA_DIR || path.join(app.getPath('userData'), 'data');
   service = new AirloService(dataDir, event => { if (win && !win.isDestroyed()) win.webContents.send('airlo:event', event); }, {
-    runtimeDirectory: app.isPackaged ? path.join(process.resourcesPath, 'llama') : path.join(app.getAppPath(), 'native', 'llama'),
-    legacyModelDir: path.join(os.homedir(), '.lmstudio', 'models')
+    runtimeDirectory: app.isPackaged ? path.join(process.resourcesPath, 'llama') : path.join(app.getAppPath(), 'native', 'llama')
   });
   await service.init();
   console.log('AirloBot local state ready');

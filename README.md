@@ -42,9 +42,9 @@ AirloBot brings local chat, project tools, and helper agents into one desktop wo
 
 ### 1. Bring a local model
 
-AirloBot manages its own bundled [llama.cpp engine](https://github.com/ggml-org/llama.cpp). **LM Studio is not required.** Use a compatible single-file GGUF model that fits your hardware. Project agents need a model with reliable tool calling.
+AirloBot manages its own bundled [llama.cpp engine](https://github.com/ggml-org/llama.cpp). No separate model application or server is required. Use a compatible single-file GGUF model that fits your hardware. Project agents need a model with reliable tool calling.
 
-Existing GGUF files can be added without copying or moving them. During migration, AirloBot also discovers models in the standard local LM Studio model folder; it never launches or calls LM Studio.
+Use **Model library → Add local GGUF** to register an existing model without copying or moving it. Already-registered models remain available when you upgrade. AirloBot also discovers compatible files in its own local library.
 
 ### 2. Build and launch
 
@@ -68,7 +68,7 @@ The launcher stores your history, drafts, and preferences in this checkout's loc
 
 ### 3. Choose a model and a mode
 
-Open **Model library → Installed**, then select **Use model**. The local-engine indicator turns green when the selected model is loaded.
+Open **Model library**, choose **Add local GGUF** if your library is empty, then select **Use model** under **Installed**. The local-engine indicator turns green when the selected model is loaded.
 
 | Mode | Use it for |
 | --- | --- |

@@ -1,6 +1,9 @@
 AIRLOBOT 0.4 — FOCUS WORKSPACE
 2026-11-01
 
+Historical 0.4 release record. Engine management and context defaults changed
+in 0.6; see USER_GUIDE.md for current behavior and setup instructions.
+
 The workspace now shares one recent-work sidebar, a project selector, and one
 composer. Choose Ask for conversation without file tools, or Work on project for
 bounded local agent work. A task result stays in the main reading area. Changes,
@@ -19,7 +22,7 @@ RESPONSE LIMITS
 Settings > Responses offers Unlimited (model context), plus fixed caps from
 256 to 32,768 tokens. Existing custom caps are retained. The former stock cap of
 1,024 becomes Unlimited when migrating a pre-0.4 data file. Unlimited sends
-max_tokens: -1 to the fixed local LM Studio API; it does not promise an infinite
+max_tokens: -1 to the local inference API; it does not promise an infinite
 context window. Stop remains available, and a two-million-character response
 guard prevents unbounded display/storage growth. Model reasoning can consume
 part of the available token budget even when disabled in the request.
@@ -37,7 +40,8 @@ The chat response preference does not remove the agent's step/time/token budgets
 
 PRIVACY AND SECURITY
 
-Inference remains fixed to http://127.0.0.1:1234, with redirects rejected.
+This release used loopback inference, with redirects rejected. Version 0.6
+manages its own authenticated engine on a dynamic loopback port.
 There is no cloud fallback, telemetry, or remote renderer content. Ask has no file
 tools. Project tools retain folder confinement, sensitive-path/link exclusions,
 read-only helpers, explicit per-file review, and stale-file checks. Hugging Face
@@ -45,7 +49,7 @@ is accessed only through library operations, and Offline mode blocks those.
 
 Drafts, chats, source excerpts, proposals and settings remain local readable JSON;
 AirloBot does not encrypt them. Other users/processes with filesystem access can
-read them. This is not an OS sandbox or control over LM Studio's own networking.
+read them. This is not an OS sandbox or control over other applications' networking.
 Closing waits for cancelled generation and pending state saves to settle.
 Updating the app must preserve data/; packaged artifacts must exclude all user
 data, model weights, research extracts and test results.
@@ -67,9 +71,7 @@ in Local engine details, reached through the status or composer model control.
 Design references (official Apple materials reviewed November 1, 2026):
 https://developer.apple.com/videos/play/wwdc2025/219/
 https://developer.apple.com/design/human-interface-guidelines/materials
-Runtime reference and local compatibility check:
-https://lmstudio.ai/docs/developer/openai-compat/chat-completions
-https://lmstudio.ai/docs/developer/rest/endpoints
+Current runtime implementation and setup: electron/runtime.mjs and USER_GUIDE.md.
 
 VALIDATION
 
@@ -88,6 +90,6 @@ Report: ignored test-results/long-response-report.json.
 
 Reproduce after npm run build:
   npx --no-install electron scripts/focus-ui-test.cjs
-  node scripts/response-live-test.mjs
+  node scripts/response-live-test.mjs "D:\Models\model.gguf"
 The first command uses synthetic fixtures. The second requires the user's local
-Gemma model/runtime, writes disposable test data, and makes no Hub requests.
+GGUF and bundled runtime, writes disposable test data, and makes no Hub requests.
