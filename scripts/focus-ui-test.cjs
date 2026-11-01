@@ -65,7 +65,7 @@ app.whenReady().then(async () => {
   await select('Work mode', 'chat'); assert.equal(await js('document.querySelector("#work-prompt").value'), 'An unsent question');
   await click('Settings'); await select('Response token limit', '8192'); await click('Save response preferences'); assert.equal(state.settings.maxTokens, 8192);
   await select('Response token limit', '-1'); await click('Save response preferences'); assert.equal(state.settings.maxTokens, -1);
-  await select('Task turn limit', '-1'); assert.equal(state.settings.taskMaxTurns, -1);
+  await click('Project tasks'); await select('Task turn limit', '-1'); assert.equal(state.settings.taskMaxTurns, -1);
   await select('Task time limit', '-1'); assert.equal(state.settings.taskMaxMinutes, -1);
   await select('Task turn limit', '100'); await select('Task time limit', '60');
   await click('← Workspace'); assert.equal(await js('document.querySelector("#work-prompt").value'), 'An unsent question');
@@ -110,10 +110,11 @@ app.whenReady().then(async () => {
       report.push({ theme, connected, ...result });
     }
     win.setSize(1440, 900); await delay(100); await shot(theme + '-workspace');
-    await click('Settings'); await js('document.querySelector(".appearance").scrollIntoView()'); await delay(90); await shot(theme + '-appearance');
+    await click('Settings'); await click('Appearance'); await js('document.querySelector(".appearance").scrollIntoView()'); await delay(90); await shot(theme + '-appearance');
     await click('← Workspace'); win.setSize(1000, 680); await delay(100);
   }
   await click('Settings');
+  await click('Appearance');
   await js('document.querySelector(".theme-light").click()'); await delay(90); assert.equal(state.settings.theme, 'light');
   await js('document.querySelector(".theme-glass").click()'); await delay(90); assert.equal(state.settings.theme, 'glass');
   await js(`document.querySelector('[aria-label="Reduce transparency"]').click()`); await delay(90);

@@ -6,7 +6,8 @@ import { AirloService } from '../electron/core.mjs';
 import { parseDevices } from '../electron/hardware.mjs';
 import { parseGGUFMetadata, memoryMetadata } from '../electron/gguf.mjs';
 import { previewGGUF } from '../electron/model-preview.mjs';
-import { memoryEstimate, modelCompatibility, chooseVariants, quantizationName, HARDWARE_MAX_AGE } from '../shared/model-compatibility.mjs';
+import { memoryEstimate, modelCompatibility, chooseVariants, quantizationName, HARDWARE_MAX_AGE, hardwareBudget, suggestedVariant } from '../shared/model-compatibility.mjs';
+import { catalogMetrics, fileSizeRange } from '../shared/model-catalog.mjs';
 
 const GiB = 1024 ** 3, revision = 'a'.repeat(40);
 const profile = () => ({ scannedAt: Date.now(), cpu: { name: 'Private fixture processor', threads: 8, architecture: 'x64' }, memory: { total: 32 * GiB, available: 24 * GiB }, disk: { available: 80 * GiB }, gpus: [{ name: 'Private fixture GPU', backend: 'Vulkan', available: 11 * GiB, total: 12 * GiB, shared: false }], gpuStatus: 'detected' });
@@ -42,6 +43,43 @@ test('hardware scanning requires opt-in and snapshots never reach persisted stat
   assert.equal(restarted.snapshot().hardwareProfile, null); assert.equal(restarted.state.settings.hardwareRecommendations, true); await restarted.shutdown();
   s.forgetHardware(); assert.equal(s.snapshot().hardwareProfile, null);
   await s.scanHardware(); await s.settings({ hardwareRecommendations: false }); assert.equal(s.snapshot().hardwareProfile, null);
+});
+
+test('catalog metrics retain unknown values and size ranges cover supported files, not the whole repository', () => {
+  assert.deepEqual(catalogMetrics({downloads:123,likes:0,lastModified:'2026-10-01T12:00:00Z'}),{downloads:123,likes:0,lastModified:'2026-10-01T12:00:00.000Z'});
+  assert.deepEqual(catalogMetrics({downloads:-1,likes:'100',lastModified:'invalid'}),{downloads:null,likes:null,lastModified:null});
+  const row=(size,extra={})=>({size,sha256:'a'.repeat(64),...extra});
+  assert.deepEqual(fileSizeRange([row(4),row(8),row(30,{split:true}),row(1,{projector:true}),row(2,{sha256:null})]),{min:4,max:8,count:2});
+  assert.equal(fileSizeRange([]),null);
+});
+
+test('guidance suggests a smaller checked version and never promises fit for unknown architectures or stale snapshots', () => {
+  const rows=[{...file,name:'m-Q4_K_M.gguf',size:8*GiB,sha256:'a'}, {...file,name:'m-Q3_K_M.gguf',size:4*GiB,sha256:'b'}];
+  assert.equal(suggestedVariant(rows,profile(),settings).name,'m-Q3_K_M.gguf');
+  assert.equal(suggestedVariant(rows,{...profile(),scannedAt:0},settings),null);
+  assert.equal(suggestedVariant(rows,profile(),{...settings,hardwareRecommendations:false}),null);
+  const unknown={...rows[0],memory:{architecture:'gemma4'}};
+  assert.notEqual(modelCompatibility(unknown,profile(),settings).level,'good');
+  assert.equal(suggestedVariant([unknown],profile(),settings),null);
+  assert.equal(modelCompatibility({...unknown,size:30*GiB},profile(),settings).label,'Weights exceed GPU budget');
+  const shared=profile(); shared.memory.available=5*GiB;shared.gpus[0].shared=true;
+  assert.ok(hardwareBudget(shared,settings).capacity<=3*GiB);
+});
+
+test('search and file details expose popularity and repository dates without sending hardware data', async t => {
+  const service=await fixture(t,{hardwareScanner:async()=>profile()});
+  await service.settings({hardwareRecommendations:true}); await service.scanHardware();
+  await assert.rejects(service.searchModels('demo'),/Offline/);
+  await service.settings({offline:false});
+  const original=global.fetch; t.after(()=>{global.fetch=original;}); const sent=[];
+  global.fetch=async(url,options)=>{
+    sent.push(JSON.stringify({url,options}));
+    const info={id:'publisher/demo',sha:revision,downloads:120,likes:8,lastModified:'2026-10-01T12:00:00Z',siblings:[]};
+    return Response.json(url.includes('?search=') ? [info] : info);
+  };
+  const rows=await service.searchModels('demo'); const info=await service.modelFiles(rows[0].id);
+  assert.equal(rows[0].likes,8);assert.equal(rows[0].lastModified,info.lastModified);
+  assert.ok(sent[0].includes('full=true'));assert.ok(!sent.join('').includes('Private fixture'));assert.ok(!sent.join('').includes('hardware'));
 });
 
 test('forget or disable during scanning prevents a late result from restoring hardware details', async t => {

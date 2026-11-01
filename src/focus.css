@@ -311,3 +311,26 @@ summary { cursor:pointer; }
 .status-dot.awaiting_review, .status-dot.needs_input, .status-dot.limited { background: #d5a44a; }
 .status-dot.applied, .status-dot.reviewed { background: #35dc85; }
 .task-transcript .user-entry:not(:first-child) { margin-top: 32px; }
+.settings-layout { display:grid; grid-template-columns:175px minmax(0,1fr); gap:32px; align-items:start; }
+.settings-categories { display:grid; gap:5px; position:sticky; top:0; }
+.settings-categories button { padding:12px 13px; border:0; border-radius:9px; background:transparent; text-align:left; font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+.settings-categories button[aria-current=page] { background:var(--selected); color:var(--text); font-weight:600; }
+.settings-categories button:hover { background:var(--hover); }.settings-content { min-width:0; }
+.settings-content .settings-section { border:0; margin:0; }.settings-section[hidden] { display:none; }
+.settings-content .setting-row { gap:18px; border-bottom:1px solid var(--line); }.settings-content .setting-row>span:first-child { max-width:390px; }
+.settings-content .range-control input { width:100px; }.settings-content .hardware-settings { margin-top:22px; }
+.settings-page .about { margin-top:30px; padding-top:20px; border-top:1px solid var(--line); }
+.unsaved-dot { width:6px; height:6px; background:var(--attention); border-radius:50%; flex:none; }
+.device-guidance { display:flex; align-items:center; justify-content:space-between; gap:22px; padding:16px 18px; border:1px solid var(--line); border-radius:12px; margin:14px 0; background:var(--surface); }
+.device-guidance strong { font-size:14px; }.device-guidance p { color:var(--muted); font-size:12px; margin:6px 0 0; max-width:700px; }.device-guidance>button { flex-shrink:0; }
+.library-device:not([open]) { display:none; }.device-guidance.compact { padding:9px 14px; background:transparent; border:0; }.empty-state .button { display:block; margin:16px auto 0; }
+.model-metrics { display:flex; flex-wrap:wrap; align-items:center; gap:8px 20px; margin:9px 0; color:var(--muted); font-size:12px; }
+.model-metrics>span { display:inline-flex; align-items:center; gap:6px; }.model-metrics svg { flex:none; }
+.search-result-card { padding:22px 0; border-bottom:1px solid var(--line); }.model-result-title { padding:0; border:0; background:transparent; text-align:left; font-size:15px; font-weight:600; overflow-wrap:anywhere; }
+.search-result-card>.text-button { margin-top:12px; }.result-fit { margin-top:12px; }.result-fit p { margin:7px 0; max-width:850px; }
+.results-toolbar { display:flex; align-items:center; justify-content:space-between; gap:22px; margin:22px 0 8px; }.results-toolbar p { max-width:520px; }.results-toolbar button { flex-shrink:0; }
+.results-pagination { display:flex; justify-content:center; align-items:center; gap:20px; padding:22px 0; }
+.fit-suggestion { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; padding:12px 14px; margin:16px 0; border-radius:8px; background:color-mix(in srgb,var(--ready) 7%,var(--surface)); color:var(--text); font-size:13px; border:1px solid var(--line); }
+.variant-card .fit-badge { font-size:11px; }.fit-details>p { font-size:12px; color:var(--muted); }.fit-details>details { font-size:12px; margin-top:8px; }
+@media(max-width:1200px) { .settings-layout { grid-template-columns:155px minmax(0,1fr); gap:22px; }.settings-content .setting-row { flex-wrap:wrap; }.settings-content .theme-options { grid-template-columns:1fr; }.settings-content .theme-preview { height:70px; }.settings-content .hardware-summary { grid-template-columns:1fr; } }
+@media(max-width:1000px) { .settings-layout { grid-template-columns:1fr; }.settings-categories { position:static; grid-template-columns:repeat(3,minmax(0,1fr)); }.device-guidance,.results-toolbar { flex-direction:column; align-items:flex-start; }.settings-content .theme-options { grid-template-columns:repeat(3,minmax(0,1fr)); }.model-metrics { gap:8px 14px; }.variant-card .fit-badge { grid-column:1 / -1; } }

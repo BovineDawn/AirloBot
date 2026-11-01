@@ -1,5 +1,12 @@
 const GiB = 1024 ** 3;
 export const HARDWARE_MAX_AGE = 15 * 60 * 1000;
+export const freshHardware = (profile, settings, now = Date.now()) => !!settings.hardwareRecommendations && Number.isFinite(profile?.scannedAt) && now - profile.scannedAt <= HARDWARE_MAX_AGE && profile.scannedAt <= now + 60000;
+export function hardwareBudget(profile, settings = {}) {
+  const ram = Math.max(0, (profile?.memory?.available || 0) - 2 * GiB);
+  const gpu = settings.acceleration === 'cpu' ? null : [...(profile?.gpus || [])].sort((a,b) => b.available - a.available)[0];
+  const capacity = gpu ? Math.max(0, gpu.shared === false ? gpu.available - GiB : Math.min(gpu.available - GiB, ram)) : ram;
+  return { ram, gpu, capacity, fileTarget: Math.max(0, capacity * .7 - GiB) };
+}
 export const quantizationName = name => /(?:^|[.\-_])((?:IQ|Q|BF|F)\d[A-Z0-9_]*(?:-[A-Z0-9_]+)?)(?=\.gguf$)/i.exec(name || '')?.[1]?.toUpperCase() || 'GGUF';
 
 // Estimates are deliberately limited to architectures with a conventional attention cache.
@@ -24,14 +31,18 @@ export function modelCompatibility(file, profile, settings = {}, now = Date.now(
   const size = file.size || file.size_bytes;
   if (!file.installed && profile.disk && size > profile.disk.available) return result('disk', 'Not enough disk space', 'The selected library drive needs more free space. Disk space is checked again when the download starts.');
   const estimate = memoryEstimate(file, settings.contextTokens);
-  if (!estimate) return result('unknown', 'Memory fit unknown', 'Detailed memory estimates are unavailable for this model architecture or its metadata. File size alone cannot predict runtime memory.');
-  const ram = Math.max(0, (profile.memory?.available || 0) - 2 * GiB);
-  const gpu = settings.acceleration === 'cpu' ? null : [...(profile.gpus || [])].sort((a,b) => b.available - a.available)[0];
+  const { ram, gpu, capacity } = hardwareBudget(profile, settings);
+  if (!estimate) {
+    if (Number.isFinite(size) && size > 0) {
+      if (gpu && size >= capacity) return result('slow', 'Weights exceed GPU budget', 'The weights alone reach the available GPU budget, before context and working memory. Try a smaller version; CPU mode may help if you have enough RAM. Runtime memory remains unverified.');
+      if ((!gpu && (settings.acceleration === 'cpu' || profile.gpuStatus === 'none')) && size >= ram) return result('tight', 'Weights exceed RAM budget', 'Choose a smaller version. The weights alone reach available system memory before context and working buffers.');
+      if (gpu || settings.acceleration === 'cpu' || profile.gpuStatus === 'none') return result('unknown', 'Weights fit; runtime unverified', 'There is room for the weights, but this architecture or its metadata does not support a full memory estimate yet. Start with a smaller version and shorter context; loading, speed and tool use still need testing.');
+    }
+    return result('unknown', 'Memory fit unknown', 'Detailed memory estimates are unavailable for this model architecture or its metadata. File size alone cannot predict runtime memory.');
+  }
   const extra = { estimate };
   if (gpu) {
     // Never add GPU capacity to RAM: shared/integrated memory must not be double-counted.
-    const usable = Math.max(0, Math.min(gpu.available - GiB, ram));
-    const capacity = gpu.shared === false ? Math.max(0, gpu.available - GiB) : usable;
     if (ram >= 2 * GiB && estimate.bytes <= capacity * .85) return result('good', 'Likely fits comfortably', 'Estimated weights, context cache and working buffers leave memory headroom. Loading support and speed are not guaranteed.', extra);
     if (ram >= GiB && estimate.bytes <= capacity) return result('tight', 'Limited headroom', 'Consider a smaller version or shorter context. Other apps and loaded models reduce available memory.', extra);
     if (estimate.bytes <= ram) return result('slow', 'May run slowly', 'This estimate exceeds available GPU memory. CPU assistance or CPU mode may be needed.', extra);
@@ -40,6 +51,12 @@ export function modelCompatibility(file, profile, settings = {}, now = Date.now(
   if (settings.acceleration !== 'cpu' && profile.gpuStatus !== 'none') return result('unknown', 'GPU memory unknown', 'GPU detection was incomplete. RAM alone is not enough to predict GPU fit.', extra);
   return estimate.bytes <= ram ? result('slow', 'CPU memory fits', 'The estimate fits available system memory. CPU generation speed has not been measured.', extra)
     : result('tight', 'Memory pressure likely', 'The model and context estimate exceed available system memory. Choose a smaller file or shorter context.', extra);
+}
+
+export function suggestedVariant(files, profile, settings, now = Date.now()) {
+  if (!freshHardware(profile, settings, now)) return null;
+  const choices = chooseVariants(files);
+  return choices.find(({file}) => modelCompatibility(file, profile, settings, now).level === 'good')?.file || null;
 }
 
 export function chooseVariants(files) {

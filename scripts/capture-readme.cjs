@@ -86,6 +86,7 @@ app.whenReady().then(async () => {
   await click('Model library'); state.settings.theme = 'light'; changed(); await delay(100);
   await capture('library-light.png');
   await click('Settings'); state.settings.theme = 'glass'; changed(); await delay(100);
+  await click('Appearance');
   win.setContentSize(1440, 760); await delay(100);
   await js('document.querySelector(".appearance").scrollIntoView()');
   await capture('appearance-glass.png');

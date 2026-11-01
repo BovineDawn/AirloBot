@@ -12,6 +12,7 @@ import { inspectModel, discoverModelFiles } from './model-files.mjs';
 import { scanHardware } from './hardware.mjs';
 import { previewGGUF } from './model-preview.mjs';
 import { quantizationName } from '../shared/model-compatibility.mjs';
+import { catalogMetrics } from '../shared/model-catalog.mjs';
 
 export const DEFAULT_SETTINGS = {
   model: '', temperature: 0.65, maxTokens: -1, offline: true, contextTokens: 16384, acceleration: 'auto',
@@ -376,14 +377,14 @@ export class AirloService {
   async searchModels(query) {
     this.requireOnline();
     if (typeof query !== 'string' || query.length > 150) throw new Error('Search is too long.');
-    const url = `https://huggingface.co/api/models?search=${encodeURIComponent(query.trim())}&filter=gguf&sort=downloads&direction=-1&limit=18`;
+    const url = `https://huggingface.co/api/models?search=${encodeURIComponent(query.trim())}&filter=gguf&sort=downloads&direction=-1&limit=18&full=true`;
     const data = await (await hubFetch(url, { signal: AbortSignal.timeout(20000) })).json();
-    return data.map(m => ({ id: m.id, downloads: m.downloads, likes: m.likes, gated: m.gated, tags: m.tags || [] }));
+    return data.slice(0, 18).map(m => ({ id: m.id, ...catalogMetrics(m), gated: !!m.gated }));
   }
   async modelFiles(repo) {
     this.requireOnline(); validateRepo(repo);
     const data = await (await hubFetch(`https://huggingface.co/api/models/${repo}?blobs=true`, { signal: AbortSignal.timeout(20000) })).json();
-    return { repo: data.id, revision: data.sha, license: data.cardData?.license || (data.tags || []).find(t => t.startsWith('license:'))?.slice(8) || 'See model card',
+    return { repo: data.id, revision: data.sha, ...catalogMetrics(data), license: data.cardData?.license || (data.tags || []).find(t => t.startsWith('license:'))?.slice(8) || 'See model card',
       files: (data.siblings || []).filter(f => /\.gguf$/i.test(f.rfilename)).map(f => ({ name: f.rfilename, quantization: quantizationName(f.rfilename), size: f.size || f.lfs?.size || 0, sha256: f.lfs?.sha256 || null, projector: /mmproj/i.test(f.rfilename), split: /-\d{5}-of-\d{5}\.gguf$/i.test(f.rfilename) })) };
   }
   async previewModel({ repo, filename, revision }) {
