@@ -1,6 +1,6 @@
 # AirloBot user guide
 
-AirloBot 0.6 is a standalone Windows desktop preview. See the [README](../README.md#get-started) for installation.
+AirloBot 0.7 is a standalone Windows desktop preview. See the [README](../README.md#get-started) for installation.
 
 ## Local engine and models
 
@@ -17,6 +17,22 @@ The existing Gemma 4 E4B model is a compatibility target. Other models require s
 **Settings → Privacy and local engine** offers context sizes from 4,096 to 65,536 tokens and Auto GPU / CPU acceleration. Default: 16,384 tokens. Project tools require at least 8,192. Higher values use more memory; the model's maximum also applies. Settings take effect at the next load/send. Unload releases memory; normal app shutdown stops the engine.
 
 Engine reference: [llama.cpp server](https://github.com/ggml-org/llama.cpp/blob/b11960/tools/server/README.md). Build provenance and the archive checksum are pinned in `scripts/runtime-lock.json`.
+
+## Hardware recommendations and download choices
+
+Under **Settings → Device & model fit**, enable **Use my hardware for model recommendations**, then choose **Scan now**. The same controls are available inside the library's **Device check** panel. The preference is off by default. Enabling it does not scan automatically, including after restarting.
+
+Scanning reads the CPU description and logical processor count, available/total RAM, free storage at the library location, and graphics devices/memory reported by the bundled Vulkan engine. It does not examine personal files, collect device serial numbers, or load a model. No administrator access is required. If the engine or GPU information is unavailable, the app reports that limitation and manual model selection remains available.
+
+Hardware snapshots exist only in app memory. They are not written to state files, logs, conversations, or Git and are never included in network requests. **Forget results**, disabling the preference, or closing AirloBot clears them. The opt-in preference alone is saved locally. Refresh before comparing models: estimates expire after 15 minutes, and other apps or a loaded model affect available memory.
+
+**Find models** offers a balanced starting variant, a smaller download, and a higher-precision option where available. These are filename/quantization-based starting points, not quality rankings. Expand **All versions** for the complete file list. Selecting a file reads only a bounded GGUF metadata header from the same pinned repository revision. Browsing and metadata requests require Offline mode to be off; hardware scanning itself works offline.
+
+Fit labels use file size, context-cache metadata, configured context/acceleration, working-buffer allowance, and memory headroom. They distinguish likely fit, limited headroom, possible CPU use, insufficient disk space, unsupported file formats, and unknown estimates. Shared GPU memory is never added to RAM, and multi-GPU capacity is not summed. Warnings allow manual choice; the download performs its own live free-space check.
+
+The first estimator covers conventional attention caches in the llama, qwen2/qwen3, gemma/gemma2/gemma3, phi3, and mistral metadata families. Other architectures, including Gemma 4, show **Memory fit unknown** and remain usable if supported by the engine. Fit is not a benchmark or proof of tool-calling quality. For already-registered models without detailed metadata, use **Model details → Check model requirements**. Installed files are read locally without copying or changing their weights.
+
+Remote metadata reads are range-only, capped at 16 MiB of header per attempt (under 22 MiB across retries), with time and concurrency limits. Servers that ignore Range, malformed headers, or unsupported layouts produce an unknown estimate. Preview failures do not trigger a full model download. Actual downloads still pin a revision and verify file size and SHA-256 before registration.
 
 ## Project conversations
 

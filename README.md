@@ -7,7 +7,7 @@
 <p align="center"><strong>An agent workspace powered by your local models.</strong></p>
 
 <p align="center">
-  Windows desktop · Local inference · Version 0.6 preview
+  Windows desktop · Local inference · Version 0.7 preview
 </p>
 
 <p align="center">
@@ -33,6 +33,7 @@ AirloBot brings local chat, project tools, and helper agents into one desktop wo
 - **Delegate locally.** The main agent can create researcher or reviewer helpers using the same installed model, with separate contexts and read-only tools.
 - **Make reviewed changes.** Create folders and text documents, edit a precise passage, and apply, reject, or undo changes with protection against overwriting newer work.
 - **Build a model library.** Add a local GGUF or browse public Hugging Face repositories, with download progress, pause/resume, and SHA-256 verification.
+- **Check memory fit privately.** Opt in to a local hardware snapshot, compare a selected model at your context setting, and choose from a few clear download variants. Hardware details stay in memory on your device.
 - **Keep your place.** Saved drafts, searchable recent work, and confirmed task/chat deletion keep the workspace manageable.
 - **Choose your finish.** Light, Dark, and macOS-inspired Liquid Glass include motion and transparency controls.
 
@@ -93,6 +94,12 @@ Task results stay in the main workspace. Open **Review changes** to see the chan
 
 Add an existing GGUF or find a public model on Hugging Face. AirloBot loads files directly and verifies downloads before adding them to the library. The library currently supports public, ungated, single-file GGUF models.
 
+Enable **Settings → Device & model fit → Use my hardware for model recommendations**, then choose **Scan now**. The library shows a few starting variants and keeps **All versions** available. Selecting a variant reads a bounded metadata preview before download. Fit labels are memory estimates, not speed or model-quality guarantees; incomplete metadata and unmodeled architectures show **Unknown**.
+
+Snapshots expire for comparisons after 15 minutes, are never saved to disk or sent to Hugging Face, and clear on **Forget results**, opt-out, or app shutdown. Existing GGUFs retain their locations. Older library entries offer **Model details → Check model requirements** to read their metadata locally.
+
+![Model download choices with a local memory-fit estimate, using synthetic model and hardware data](docs/media/library-downloads.png)
+
 ![Light theme showing the local model library and model selection controls](docs/media/library-light.png)
 
 <details>
@@ -116,7 +123,7 @@ The bundled engine has remote access, built-in agent tools, request logging, and
 
 ## Current scope
 
-AirloBot 0.6 supports local text chat, persistent project conversations, folder creation, and reviewed UTF-8 text/Markdown/source edits up to 1 MiB. Helpers run sequentially, with up to two helpers per turn. New turns default to **100 shared model turns and 60 minutes**, both configurable. Word/PDF editing, terminal commands, project test execution, and autonomous writes are not available.
+AirloBot 0.7 supports local text chat, persistent project conversations, folder creation, and reviewed UTF-8 text/Markdown/source edits up to 1 MiB. Helpers run sequentially, with up to two helpers per turn. New turns default to **100 shared model turns and 60 minutes**, both configurable. Word/PDF editing, terminal commands, project test execution, and autonomous writes are not available.
 
 The app is tested on Windows. CI checks the service and production build on Windows and Linux; this does not imply a supported Linux desktop release. See the [user guide](docs/USER_GUIDE.md) for model requirements, exact limits, and troubleshooting.
 

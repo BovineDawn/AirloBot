@@ -80,3 +80,13 @@ v0.6.0: Bundled authenticated llama.cpp, direct GGUF registration, persistent
 project conversations, paged file browsing, reviewed folders and targeted edits,
 and conflict-aware undo. Native binaries live only in ignored native/ and release/.
 Run scripts/focus-ui-test.cjs with Electron for synthetic renderer checks.
+
+v0.7.0: Optional in-memory hardware snapshots, conservative model-fit labels,
+bounded remote GGUF metadata previews, and a simpler download chooser.
+Run the new synthetic UI checks after building:
+  npx --no-install electron scripts/library-ui-test.cjs
+Optional hardware smoke test (prints only validation outcomes):
+  node scripts/hardware-live-test.mjs
+Add --hub only when explicitly testing a small public model download. All live
+test state remains in ignored test-results. Never commit real device reports.
+Snapshots must remain outside persisted app state and outbound Hub requests.
