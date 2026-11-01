@@ -7,7 +7,7 @@
 <p align="center"><strong>An agent workspace powered by your local models.</strong></p>
 
 <p align="center">
-  Windows desktop · Local inference · Version 0.5 preview
+  Windows desktop · Local inference · Version 0.6 preview
 </p>
 
 <p align="center">
@@ -29,9 +29,9 @@ AirloBot brings local chat, project tools, and helper agents into one desktop wo
 
 ## What you can do
 
-- **Work on a project.** Explore folders, read files, search text, and propose focused changes.
+- **Work on a project.** Keep follow-ups in one folder-bound conversation. Browse files, search text, and inspect what the agent actually read.
 - **Delegate locally.** The main agent can create researcher or reviewer helpers using the same installed model, with separate contexts and read-only tools.
-- **Stay in control.** Inspect activity and file changes, apply or reject each proposal, and stop work at any time.
+- **Make reviewed changes.** Create folders and text documents, edit a precise passage, and apply, reject, or undo changes with protection against overwriting newer work.
 - **Build a model library.** Add a local GGUF or browse public Hugging Face repositories, with download progress, pause/resume, and SHA-256 verification.
 - **Keep your place.** Saved drafts, searchable recent work, and confirmed task/chat deletion keep the workspace manageable.
 - **Choose your finish.** Light, Dark, and macOS-inspired Liquid Glass include motion and transparency controls.
@@ -40,9 +40,11 @@ AirloBot brings local chat, project tools, and helper agents into one desktop wo
 
 **This is an early Windows preview built from source. A signed installer and automatic updater are not available yet.**
 
-### 1. Prepare your local engine
+### 1. Bring a local model
 
-Install [LM Studio](https://lmstudio.ai/) and a compatible text model that fits your hardware. For project agents, choose a model that supports tool calling. AirloBot uses LM Studio's local server at `http://127.0.0.1:1234` and its `lms` CLI. See the [local-server setup guide](https://lmstudio.ai/docs/developer/core/server).
+AirloBot manages its own bundled [llama.cpp engine](https://github.com/ggml-org/llama.cpp). **LM Studio is not required.** Use a compatible single-file GGUF model that fits your hardware. Project agents need a model with reliable tool calling.
+
+Existing GGUF files can be added without copying or moving them. During migration, AirloBot also discovers models in the standard local LM Studio model folder; it never launches or calls LM Studio.
 
 ### 2. Build and launch
 
@@ -55,9 +57,12 @@ git clone https://github.com/BovineDawn/AirloBot.git
 cd AirloBot
 npm ci
 npx --no-install install-electron
+npm run runtime:install
 npm run build
 & ".\Start AirloBot.cmd"
 ```
+
+The explicit runtime installation step downloads a pinned, SHA-256-verified Windows engine. Packaged builds already include it and need no runtime download.
 
 The launcher stores your history, drafts, and preferences in this checkout's local `data` folder. After setup, double-click **Start AirloBot.cmd** to reopen the app.
 
@@ -68,7 +73,7 @@ Open **Model library → Installed**, then select **Use model**. The local-engin
 | Mode | Use it for |
 | --- | --- |
 | **Ask** | Questions, explanations, and planning. No project folder or file tools. |
-| **Work on project** | Goals that need project files. Choose a folder, enter a goal, then review the result. |
+| **Work on project** | Goals that need project files. Choose a folder, enter a goal, then review the result. Send follow-ups in the same conversation; New task starts a separate one. |
 
 Try a first task:
 
@@ -80,13 +85,13 @@ Need more room? **Settings → Project tasks** offers **Unlimited turns** and **
 
 ### Review the change before it reaches your files
 
-Task results stay in the main workspace. Open **Review changes** to see the changed lines, expand the full before/after text, and choose **Apply this file** or **Reject**. Nothing is applied by a model tool itself.
+Task results stay in the main workspace. Open **Review changes** to see the changed lines, expand the full before/after text, and choose **Apply change** or **Reject**. Nothing is applied by a model tool itself. Applied changes offer Undo; newer edits are preserved if a conflict is detected.
 
 ![Dark theme with a proposed file change, readable diff, and explicit Apply and Reject controls](docs/media/review-dark.png)
 
 ### Bring your own local models
 
-Use models already installed in LM Studio, import a GGUF, or find a public model on Hugging Face. Downloads are verified before import. The library currently supports public, ungated, single-file GGUF models.
+Add an existing GGUF or find a public model on Hugging Face. AirloBot loads files directly and verifies downloads before adding them to the library. The library currently supports public, ungated, single-file GGUF models.
 
 ![Light theme showing the local model library and model selection controls](docs/media/library-light.png)
 
@@ -101,17 +106,17 @@ Choose Light, Dark, or Liquid Glass in **Settings → Appearance**. Adjust glass
 
 ## Privacy and control
 
-- **Inference stays on this computer.** AirloBot sends prompts and project context only to the fixed local model endpoint. It has no cloud inference fallback, telemetry, or account login.
-- **Network access is explicit.** Hugging Face receives library searches and download requests. **Offline mode** blocks those operations while installed models remain usable.
+- **Inference stays on this computer.** AirloBot sends prompts and project context only to its owned, authenticated loopback engine. It has no cloud inference fallback, telemetry, or account login.
+- **Network access is explicit.** Hugging Face receives library searches and download requests. **Offline mode**, enabled by default for new installs, blocks those operations while installed models remain usable.
 - **File access is scoped.** Project tools stay within the selected folder, block sensitive path patterns and links, and require review before writing changes.
 - **Storage is local, not encrypted.** Conversations, drafts, task activity, and proposals are saved as readable local data. Anyone with access to those files can read them.
 - **Private data stays out of the repository.** Runtime data and model weights are ignored by Git and excluded from app packages. Publishing checks help catch recognized private-data paths and credentials.
 
-LM Studio is a separate application; its own networking and updates are outside AirloBot's controls. Read the [storage and privacy details](docs/USER_GUIDE.md#privacy-and-storage) before using sensitive projects.
+The bundled engine has remote access, built-in agent tools, request logging, and its web UI disabled. AirloBot stops its engine when the app closes normally. See [storage and privacy details](docs/USER_GUIDE.md#privacy-and-storage).
 
 ## Current scope
 
-AirloBot 0.5 supports text chat and small, reviewed file changes. Helpers run sequentially, with up to two helpers per task. New tasks default to **100 shared model turns and 60 minutes**, both configurable. Terminal execution, running project tests, large-file patch editing, and autonomous writes are not available yet.
+AirloBot 0.6 supports local text chat, persistent project conversations, folder creation, and reviewed UTF-8 text/Markdown/source edits up to 1 MiB. Helpers run sequentially, with up to two helpers per turn. New turns default to **100 shared model turns and 60 minutes**, both configurable. Word/PDF editing, terminal commands, project test execution, and autonomous writes are not available.
 
 The app is tested on Windows. CI checks the service and production build on Windows and Linux; this does not imply a supported Linux desktop release. See the [user guide](docs/USER_GUIDE.md) for model requirements, exact limits, and troubleshooting.
 
