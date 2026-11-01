@@ -30,11 +30,13 @@ getAsyncTasks, getAgentTasks and interruptAgentRun. These are client-facing
 contracts and static evidence, not recovered server orchestration code or proof
 that any particular model implements delegation internally.
 
-AirloBot code audit
-The current service streams /v1/chat/completions from fixed loopback, stores
+AirloBot baseline audit (before the v0.3 project-agent implementation)
+That baseline service streams /v1/chat/completions from fixed loopback, stores
 conversations in JSON and allows one generation at a time. It does not send
 tools, process tool_calls or execute agent tasks. HF downloads already pin a
 revision and verify size/SHA-256 before importing into the local runtime.
+The v0.3 implementation adds project tools, bounded helpers and reviewed edits.
+See UI_RESEARCH_AND_PROPOSALS.txt for the subsequent interface review.
 
 Our inference and design choice
 Grok Bot's ease of use can be approximated by clear ownership, durable jobs,

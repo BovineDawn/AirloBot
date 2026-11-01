@@ -1,0 +1,201 @@
+AIRLOBOT UI REVIEW AND PROPOSALS | 2026-11-01
+
+Recommendation: make a focused project workspace the default. Keep one primary
+AirloBot, one place to give it work, and reveal helpers, activity, and file
+details when they matter. Keep model downloads easy to find. A quiet interface
+should still make pending file changes and actual capabilities obvious.
+
+Status: the connection/footer contrast fix is implemented and packaged. The
+larger layouts below are proposals, not implemented product functionality.
+
+RESEARCH METHOD
+
+Reviewed the installed Grok Bot conversation shell and expanded details pane,
+AirloBot's running chat/library, AirloBot's source, the existing local static
+renderer analysis, and the official public sources below. No research prompt
+was sent to Grok Bot. No private conversation content, account details, original
+artwork, private-chat screenshots, or extracted source is included here.
+
+DIRECT OBSERVATIONS AND PUBLIC CORROBORATION
+
+1. Grok Bot presents a roughly 280px left roster, search/add controls, a pinned
+   primary Bot, and secondary Bot rows with a short preview. Its central area
+   is the conversation. This matches the primary/coordinator and organized
+   roster model described in the official Bot guide [S2].
+2. The conversation name opens a details pane with Details, Library, and
+   Computer tabs. These controls are absent from the main view until opened.
+   The output Library and previews are documented in [S4].
+3. One bottom composer carries the interaction. A plus menu holds secondary
+   actions. There is no permanent model-hardware dashboard above the work.
+   Messages, tool activity, questions, handoffs, results, and approvals share a
+   transcript in the documented interaction model [S3].
+4. The narrow window gets cramped with both sidebar and details open. AirloBot
+   should use a full-width drawer at small sizes rather than copy that tradeoff.
+5. The current public docs describe personal Bot instructions/memory as managed
+   conversationally [S2]. We should preserve explicit, inspectable settings as
+   AirloBot grows; simplification should not remove user control.
+6. Grok Bot's appearance settings allow a neutral black accent [S5]. Its
+   changelog describes compact sidebar controls, simpler approval cards, and
+   reduced attachment/status clutter [S6]. These reinforce a consistent trend:
+   show the work first and expose detail at the point it becomes relevant.
+
+Static corroboration: ../reports/ui-features.txt (outside this Git repository),
+UI03/E10-E11 describes a 280px sidebar, initially closed 320px info pane, pins,
+sections, collapse state, and persisted widths. UI04-06 cover composition, send
+lifecycle, and task states. This is shipped-client evidence, not proof that all
+features are enabled for an account or a recovery of server orchestration code.
+
+The conclusion that revealing details on demand contributes to Grok Bot's
+simplicity is our design inference. We did not run a user study, benchmark
+task-completion speed, or verify every product feature.
+
+WHY AIRLOBOT FEELS BUSY
+
+- Two work structures: global task/conversation navigation plus conversation
+  history, then a second task-history column inside the task page.
+- Conflicting creation paths: the largest sidebar action says New conversation
+  while the default project page asks for a goal. Users must understand our
+  underlying record types before starting work.
+- Repeated local/privacy assurances: sidebar card, sidebar footer, engine label,
+  ready badge, composer label, and hardware footer repeat related information.
+- Setup dominates results: heading, subtitle, folder card, goal form, presets,
+  model selector, and limits note all precede the selected task's result.
+- Similar emphasis everywhere: folder, agents, result, proposals, and activity
+  all use bordered cards. The next action lacks a distinct visual priority.
+- Small, faint type against glass gradients: metadata was 9px and #7c7c7c; the
+  caution was #5a5a5a and was hidden on narrower windows.
+- Long model names consume toolbar space; repository identifiers belong in a
+  details view behind a readable friendly model name.
+- The model library repeats headings, summary blocks, tall cards, and a
+  promotional strip before users can simply select or download a model.
+
+IMPLEMENTED NOW
+
+- Selected model loaded AND engine reachable: bright green #4ade80 text/dot.
+- Engine reachable without the selected model loaded: red #ff747b with
+  "No model connected". Having a different model loaded does not count.
+- Engine unreachable: red with "Local engine offline".
+- Accessible status text accompanies color; the dot is decorative.
+- Metadata: light blue #bfd7f5. Caution: light gray #c5cbd4. Both are 11px;
+  the caution wraps at narrow widths instead of disappearing.
+- Verification: 18 existing tests and production build passed. An isolated
+  renderer check passed 12 scenarios: three themes times ready/no-model/offline/
+  another-model-loaded. It verified labels, text/dot colors, and footer visibility
+  at 1000px. Package audit verified built assets and excluded data/test artifacts.
+- The previous installed package was backed up; the updated package was opened
+  with the existing local data directory and visually checked after restart.
+
+LAYOUT OPTIONS
+
+A. Focus workspace (recommended)
+   Left: robot identity, New task, project-scoped recent work. Model library and
+   Settings stay at the bottom. Sidebar can collapse.
+   Top: project selector, current task title, and one green/red engine control.
+   Center: goal, concise activity, result, and pending changes. Helpers appear
+   under an expandable activity row rather than as a permanent second roster.
+   Bottom: one composer, explicit Ask / Work on project mode, a short model
+   selector, and one primary Send/Run action. Folder setup appears when needed.
+   Optional drawer: Changes, Helpers, Activity.
+   Benefit: matches one-primary-agent operation and reduces navigation.
+   Cost: requires a view adapter over separate task and conversation records.
+
+B. Project workbench (alternative)
+   Left: projects/tasks. Center: work transcript and composer. Right: file/change
+   preview on wide windows; a drawer at narrow widths. Helpers stay collapsed.
+   Benefit: efficient for comparing several code changes.
+   Cost: denser. Prefer it as an optional Review view of the same task rather
+   than the everyday landing page.
+
+C. Bot roster (later)
+   Primary AirloBot plus pinned specialists with durable roles.
+   Benefit: recurring responsibilities become easy to revisit.
+   Cost: current helpers are task-scoped, read-only, and share one sequential
+   model. A persistent roster now would promise ongoing context, independent
+   conversations, and scheduling we have not built.
+
+PRIORITIZED UPDATE PROPOSALS
+
+P1. Simplify the existing shell (small, presentation-focused).
+    Remove the large privacy card and repeated slogans. Replace the oversized
+    welcome area with one heading and two optional starter actions. Keep the
+    robot, black/gray theme choices, and direct Model library access.
+    Compact folder selection into a header control with the path on demand.
+    Bring selected results and pending reviews above the new-goal form.
+    Fold detailed events; show the current activity and helper count.
+    Acceptance: at 1000x680 the composer/status remain reachable without scrolling
+    the whole window; pending reviews have a clearly visible entry.
+
+P2. Unify the work surface (medium; recommended next substantial implementation).
+    One creation action and one project-scoped history. Render existing task
+    and conversation records through adapters without rewriting their IDs.
+    Use an explicit Ask / Work on project mode, so file-access scope is clear.
+    Save drafts per work item and restore selection when navigating.
+    Current task follow-ups should create a new run or reuse its goal; resuming
+    or steering an existing run is a separate backend feature.
+    Acceptance: start a task, ask a simple question, find a previous result,
+    and return without losing drafts, selected project, or pending proposals.
+
+P3. Make delegation understandable (small-to-medium).
+    Use a concise activity sentence and expandable helper count. Expanded rows
+    show name, purpose, queued/running/done, and findings. Errors appear beside
+    their task; Stop stays visible. Do not imply concurrent local inference.
+    Preserve two-helper/depth-one limits and cancellation behavior.
+    Acceptance: identify the active worker and open its evidence in one action,
+    including when a helper fails or work is stopped.
+
+P4. Give changes a dedicated review surface (medium).
+    A "Review 2 changes" entry opens a drawer/workbench showing file, reason,
+    diff, and Apply/Reject. Full before/after contents remain available.
+    Keep per-file confirmation and stale-file checks in host code. Compact UI
+    must never turn a proposal into an automatic write.
+    Acceptance: pending/applied/rejected/stale states are distinct; long paths
+    and lines remain readable; narrow windows use a full-width drawer.
+
+P5. Simplify the model library (small-to-medium).
+    Keep Installed, Find models, and Downloads. Use compact rows with name,
+    size, selected/loaded state, and a contextual Use or Download action.
+    Put GGUF details in a disclosure. Keep Hugging Face download progress,
+    cancellation, resuming, and verification visible and intact.
+    Distinguish offline download restrictions from local model readiness.
+    Acceptance: select an installed model or locate/download a GGUF without
+    needing to interpret the chat/project interface first.
+
+P6. Establish readable visual defaults (small changes across views).
+    Target 14-15px body and 12px secondary text in the larger redesign. Reserve
+    green/red for readiness and amber for required attention, always with text.
+    Keep Graphite as the default. Liquid Glass can affect navigation/chrome
+    while reading and review surfaces stay dark and visually stable.
+    Validate actual composite backgrounds against the contrast guidance in [S7].
+    Add visible keyboard focus and menu equivalents for shortcuts; essential
+    controls must not depend on hover, color, or knowing a key combination.
+
+DELIVERY ORDER AND BOUNDARIES
+
+1. P1 and readable typography/theme tokens from P6 in a focused PR.
+2. P2 with draft/selection persistence checks and existing local service APIs.
+3. P3/P4 with cancellation and stale-proposal regression checks through the UI.
+4. P5 while retaining the existing download verification/resume behavior.
+5. Durable named Bots only after a separate role/memory design is agreed.
+
+These proposals preserve local inference and reviewed writes. Terminal access,
+web tools, cloud inference, autonomous edits, and parallel model loading are
+separate capability decisions, not implied by a simpler interface.
+
+The two accompanying layout concepts use sample content only. They do not run
+models, execute tasks, download weights, or write project files.
+
+SOURCES (accessed 2026-11-01)
+
+[S1] Get started: https://docs.x.ai/grok-bot/get-started
+[S2] Create and manage Bots: https://docs.x.ai/grok-bot/bots
+[S3] Message and collaborate:
+     https://docs.x.ai/grok-bot/chat-and-collaboration
+[S4] Files and results: https://docs.x.ai/grok-bot/files-and-results
+[S5] Settings: https://docs.x.ai/grok-bot/settings-and-notifications
+[S6] Changelog: https://x.ai/changelog/bot
+     Relevant entries: Sep 22 (sidebar), Sep 17 (approval summaries),
+     Oct 27 (compact attachments and working-status behavior).
+[S7] W3C contrast guidance:
+     https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html
+     At least 4.5:1 for normal text; this review is not a complete accessibility
+     certification of either application.
