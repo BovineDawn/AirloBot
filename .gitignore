@@ -36,3 +36,6 @@ history.json
 *.heapsnapshot
 *.safetensors
 native/
+hardware-profile.json
+hardware-scan.json
+device-profile.json

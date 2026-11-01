@@ -31,6 +31,7 @@ if (primaryInstance) app.whenReady().then(async () => {
   console.log('AirloBot local state ready');
   const methods = {
     snapshot: () => service.snapshot(), status: () => service.status(), startRuntime: () => service.startRuntime(),
+    scanHardware: () => service.scanHardware(), forgetHardware: () => service.forgetHardware(), previewModel: arg => service.previewModel(arg), inspectLocalModel: arg => service.inspectLocalModel(arg),
     settings: arg => service.settings(arg), workspace: arg => service.workspace(arg), loadModel: arg => service.loadModel(arg), unloadModel: arg => service.unloadModel(arg),
     newConversation: () => service.newConversation(), deleteConversation: arg => service.deleteConversation(arg),
     send: arg => service.send(arg), stopChat: () => service.stopChat(), searchModels: arg => service.searchModels(arg),

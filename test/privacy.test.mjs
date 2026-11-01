@@ -5,7 +5,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { isPrivatePath, contentRisks, checkRepository } from '../scripts/privacy-check.mjs';
 test('publishing guard recognizes runtime data and credential paths', () => {
-  for (const name of ['data/state.json', 'nested/data/state.json', 'backup/state.json', 'test-results/report.json', 'release/app.exe', '.env.local', 'a/private.key', 'models/local.gguf', 'screenshots/window.png', 'drafts.json']) assert.equal(isPrivatePath(name), true, name);
+  for (const name of ['data/state.json', 'nested/data/state.json', 'backup/state.json', 'test-results/report.json', 'release/app.exe', '.env.local', 'a/private.key', 'models/local.gguf', 'screenshots/window.png', 'drafts.json', 'hardware-profile.json', 'hardware-scan.json', 'device-profile.json']) assert.equal(isPrivatePath(name), true, name);
   for (const name of ['src/FocusApp.jsx', 'test/agents.test.mjs', 'docs/README.txt', '.env.example']) assert.equal(isPrivatePath(name), false, name);
 });
 test('publishing guard examines staged bytes and catches force-added local data', async t => {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Check, FolderOpen, Moon, ShieldCheck, Sparkles, Sun } from 'lucide-react';
 import { api, Toggle } from './ui.jsx';
+import HardwareSettings from './HardwareSettings.jsx';
 
 export default function Settings({ state, status, busy, attempt, refresh, notify }) {
   const s = state.settings;
@@ -21,6 +22,7 @@ export default function Settings({ state, status, busy, attempt, refresh, notify
       <label className="setting-row"><span><strong>Task time limit</strong><small>Separate from the turn budget. Choose No time limit for work that should continue until finished or stopped.</small></span><select aria-label="Task time limit" value={s.taskMaxMinutes} disabled={!!busy} onChange={e => save({ taskMaxMinutes: Number(e.target.value) })}><option value={-1}>No time limit</option>{[...new Set([15, 30, 60, 120, 240, ...(s.taskMaxMinutes > 0 ? [s.taskMaxMinutes] : [])])].sort((a,b)=>a-b).map(n => <option key={n} value={n}>{n} minutes</option>)}</select></label>
       <p className="small muted">Changes save automatically. Helpers stay read-only, up to two per task. All file changes still require review. Model context, individual request timeouts, and file-size limits still apply.</p>
     </section>
+    <section className="settings-section"><h2>Device & model fit</h2><HardwareSettings state={state} busy={busy} attempt={attempt} notify={notify}/></section>
     <section className="settings-section"><h2>Privacy and local engine</h2>
       <div className="privacy-summary"><ShieldCheck size={20}/><p>Prompts and project files go only to the model server on this computer. Hugging Face is contacted when you browse or download models. AirloBot has no analytics or cloud inference.</p></div>
       <div className="setting-row"><span><strong>Offline mode</strong><small>Block Hugging Face browsing and downloads. Local work stays available.</small></span><Toggle label="Offline mode" checked={s.offline} disabled={!!busy} onChange={offline => save({ offline })}/></div>
@@ -37,6 +39,6 @@ export default function Settings({ state, status, busy, attempt, refresh, notify
       <div className="setting-row"><span><strong>Reduce transparency</strong><small>Use solid surfaces for stronger contrast.</small></span><Toggle label="Reduce transparency" checked={s.reducedTransparency} disabled={!!busy} onChange={reducedTransparency => save({ reducedTransparency })}/></div>
       <div className="setting-row"><span><strong>Reduce motion</strong><small>System motion preferences are respected too.</small></span><Toggle label="Reduced motion" checked={s.reducedMotion} disabled={!!busy} onChange={reducedMotion => save({ reducedMotion })}/></div>
     </section>
-    <p className="about">AirloBot 0.6 · Local models, reviewed actions.</p>
+    <p className="about">AirloBot 0.7 · Local models, reviewed actions.</p>
   </div>;
 }
