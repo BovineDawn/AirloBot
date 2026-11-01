@@ -1,28 +1,27 @@
-"""Rasterize CrocBot's geometric application mark without external dependencies."""
+"""Rasterize AirloBot's geometric application mark without external dependencies."""
 from pathlib import Path
 import struct, zlib
 
 OUT = Path(__file__).resolve().parents[1] / 'assets'
 OUT.mkdir(exist_ok=True)
-MINT = (199, 246, 160, 255)
-DARK = (23, 55, 37, 255)
-PALE = (215, 251, 178, 255)
-BODY = [(11,21),(19,21),(23,15),(30,15),(33,21),(38,21),(38,30),(25,30),(19,36),(11,36)]
-
-def inside(x, y, points):
-    result = False
-    for i, a in enumerate(points):
-        b = points[i-1]
-        if (a[1] > y) != (b[1] > y) and x < (b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]:
-            result = not result
-    return result
+def rounded(x, y, left, top, width, height, radius):
+    if not left <= x <= left+width or not top <= y <= top+height: return False
+    cx = min(max(x, left+radius), left+width-radius)
+    cy = min(max(y, top+radius), top+height-radius)
+    return (x-cx)**2 + (y-cy)**2 <= radius**2
 
 def pixel(x, y):
-    cx, cy = min(max(x, 13), 35), min(max(y, 13), 35)
-    if (x-cx)**2 + (y-cy)**2 > 13**2: return (0,0,0,0)
-    color = DARK if inside(x,y,BODY) else MINT
-    if any(inside(x,y,[(p,29),(p+3,34),(p+6,29)]) for p in [22,28]): color = DARK
-    if (x-28)**2+(y-20)**2 < 4 or 13 <= x <= 36 and 25 <= y <= 27: color = PALE
+    if not rounded(x,y,.5,.5,47,47,14): return (0,0,0,0)
+    color = (32,32,32,255) if rounded(x,y,1,1,46,46,13.5) else (72,72,72,255)
+    if 23 <= x <= 25 and 8 <= y <= 16: color = (196,196,196,255)
+    if (x-24)**2+(y-8)**2 <= 2.5**2: color = (237,237,237,255)
+    if rounded(x,y,6,22,4,10,2) or rounded(x,y,38,22,4,10,2): color = (153,153,153,255)
+    if rounded(x,y,10,15,28,24,9):
+        v = round(241 - 108*min(1,max(0,(x+y-24)/52)))
+        color = (v,v,v,255)
+    if rounded(x,y,13,19,22,14,6): color = (36,36,36,255)
+    if rounded(x,y,17,23,4,6,2) or rounded(x,y,27,23,4,6,2): color = (247,247,247,255)
+    if rounded(x,y,20,35,8,2,1): color = (66,66,66,255)
     return color
 
 def png(size):
@@ -43,6 +42,6 @@ entries = []
 for size, data in zip(sizes, images):
     entries.append(struct.pack('<BBBBHHII',size%256,size%256,0,0,1,32,len(data),offset))
     offset += len(data)
-(OUT/'crocbot.ico').write_bytes(struct.pack('<HHH',0,1,len(sizes))+b''.join(entries)+b''.join(images))
-(OUT/'crocbot.png').write_bytes(images[-1])
-print('Created CrocBot PNG and multi-size Windows icon.')
+(OUT/'airlobot.ico').write_bytes(struct.pack('<HHH',0,1,len(sizes))+b''.join(entries)+b''.join(images))
+(OUT/'airlobot.png').write_bytes(images[-1])
+print('Created AirloBot PNG and multi-size Windows icon.')

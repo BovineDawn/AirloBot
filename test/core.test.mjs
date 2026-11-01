@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { CrocService, validateRepo, safeModelPath, isHubURL, localFetch, hubFetch, sseJSON } from '../electron/core.mjs';
+import { AirloService, DEFAULT_SETTINGS, validateRepo, safeModelPath, isHubURL, localFetch, hubFetch, sseJSON } from '../electron/core.mjs';
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
 async function until(fn) { for (let i = 0; i < 100; i++) { if (fn()) return; await delay(20); } throw new Error('Timed out'); }
@@ -16,7 +16,7 @@ async function fixture(t) {
     assert.ok(path.resolve(dir).startsWith(root + path.sep));
     await fs.rm(dir, { recursive: true, force: true });
   });
-  const service = new CrocService(dir, () => {}, { importModels: false }); await service.init(); return service;
+  const service = new AirloService(dir, () => {}, { importModels: false }); await service.init(); return service;
 }
 
 test('GGUF paths cannot escape the library or use Windows alternate streams', () => {
@@ -39,19 +39,47 @@ test('inference requests always use a fixed loopback origin and reject redirects
   await assert.rejects(localFetch('https://cloud.example'), /Invalid/);
 });
 test('SSE handles split UTF-8 tokens, CRLF and done frames', async () => {
-  const bytes = new TextEncoder().encode('data: {"text":"croc 🐊"}\r\n\r\ndata: {"n":2}\n\ndata: [DONE]\n\n');
+  const bytes = new TextEncoder().encode('data: {"text":"airlo 🤖"}\r\n\r\ndata: {"n":2}\n\ndata: [DONE]\n\n');
   const body = new ReadableStream({ start(c) { for (let i = 0; i < bytes.length; i += 2) c.enqueue(bytes.slice(i, i + 2)); c.close(); } });
   const result = []; for await (const item of sseJSON(body)) result.push(item);
-  assert.deepEqual(result, [{ text: 'croc 🐊' }, { n: 2 }]);
+  assert.deepEqual(result, [{ text: 'airlo 🤖' }, { n: 2 }]);
 });
 test('offline mode blocks the model hub, while local state survives restart', async t => {
   const s = await fixture(t); const id = await s.newConversation();
   await s.settings({ offline: true, temperature: 0.3 });
   await assert.rejects(s.searchModels('Gemma'), /Offline/);
   await assert.rejects(s.modelFiles('owner/repo'), /Offline/);
-  const restarted = new CrocService(s.dataDir); await restarted.init();
+  const restarted = new AirloService(s.dataDir); await restarted.init();
   assert.equal(restarted.state.settings.offline, true); assert.equal(restarted.state.settings.temperature, 0.3);
   assert.equal(restarted.state.conversations[0].id, id);
+});
+
+test('appearance survives restart and rejects invalid changes without partial updates', async t => {
+  const s = await fixture(t);
+  await s.settings({ theme: 'glass', glassIntensity: 82, reducedMotion: true });
+  const restarted = new AirloService(s.dataDir); await restarted.init();
+  assert.equal(restarted.state.settings.theme, 'glass');
+  assert.equal(restarted.state.settings.glassIntensity, 82);
+  assert.equal(restarted.state.settings.reducedMotion, true);
+  for (const patch of [{ theme: 'remote' }, { theme: 'midnight', glassIntensity: 100 }, { glassIntensity: 50.5 }, { reducedMotion: 'false' }]) await assert.rejects(restarted.settings(patch));
+  assert.equal(restarted.state.settings.theme, 'glass');
+  assert.equal(restarted.state.settings.glassIntensity, 82);
+});
+
+test('rename migrates only the stock identity and preserves conversations and custom instructions', async t => {
+  const s = await fixture(t); const id = await s.newConversation();
+  s.state.conversations[0].messages.push({ role: 'user', content: 'My CrocBot project', status: 'complete' });
+  s.state.settings = { systemPrompt: DEFAULT_SETTINGS.systemPrompt.replace('AirloBot', 'CrocBot') };
+  await s.save();
+  const migrated = new AirloService(s.dataDir); await migrated.init();
+  assert.equal(migrated.state.settings.systemPrompt, DEFAULT_SETTINGS.systemPrompt);
+  assert.equal(migrated.state.settings.theme, 'graphite');
+  assert.equal(migrated.state.conversations[0].id, id);
+  assert.equal(migrated.state.conversations[0].messages[0].content, 'My CrocBot project');
+  const custom = 'You are CrocBot. Help me with my own project.';
+  await migrated.settings({ systemPrompt: custom });
+  const restarted = new AirloService(s.dataDir); await restarted.init();
+  assert.equal(restarted.state.settings.systemPrompt, custom);
 });
 test('streaming responses persist, duplicate sends reject, cancellation is recorded', async t => {
   const s = await fixture(t); const original = global.fetch; t.after(() => { global.fetch = original; });

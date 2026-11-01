@@ -1,7 +1,7 @@
 {
-  "name": "crocbot",
-  "productName": "CrocBot",
-  "version": "0.1.0",
+  "name": "airlobot",
+  "productName": "AirloBot",
+  "version": "0.2.0",
   "private": true,
   "description": "A local-only desktop assistant and GGUF model library.",
   "type": "module",
@@ -11,7 +11,7 @@
     "start": "electron .",
     "test": "node --test test/*.test.mjs",
     "test:live": "node scripts/live-test.mjs",
-    "package": "npm run build && electron-packager . CrocBot --platform=win32 --arch=x64 --out=release --icon=assets/crocbot.ico --ignore=^/release --ignore=^/data --ignore=^/test --ignore=^/scripts --ignore=^/src --ignore=^/test-results"
+    "package": "npm run build && electron-packager . AirloBot --platform=win32 --arch=x64 --out=release --icon=assets/airlobot.ico --ignore=^/release --ignore=^/data --ignore=^/test --ignore=^/scripts --ignore=^/src --ignore=^/test-results --ignore=^/docs --ignore=^/.github"
   },
   "dependencies": {
     "react": "19.3.1",
@@ -23,5 +23,12 @@
     "electron": "45.2.1",
     "vite": "8.3.5",
     "@electron/packager": "^19.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BovineDawn/AirloBot.git"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }

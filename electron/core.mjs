@@ -10,7 +10,8 @@ export const MODEL = 'gemma-4-e4b-uncensored-hauhaucs-aggressive';
 export const LOCAL_ORIGIN = 'http://127.0.0.1:1234';
 export const DEFAULT_SETTINGS = {
   model: MODEL, temperature: 0.65, maxTokens: 1024, offline: false,
-  systemPrompt: 'You are CrocBot, a helpful assistant running locally on this computer. Be clear, practical, and honest about uncertainty. You have no web access or computer tools. Do not claim to perform actions you cannot perform.'
+  theme: 'graphite', glassIntensity: 60, reducedMotion: false,
+  systemPrompt: 'You are AirloBot, a helpful assistant running locally on this computer. Be clear, practical, and honest about uncertainty. You have no web access or computer tools. Do not claim to perform actions you cannot perform.'
 };
 const now = () => new Date().toISOString();
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -81,7 +82,7 @@ export async function* sseJSON(body) {
   if (buffer.startsWith('data:') && buffer.slice(5).trim() !== '[DONE]') yield JSON.parse(buffer.slice(5).trim());
 }
 
-export class CrocService {
+export class AirloService {
   constructor(dataDir, emit = () => {}, options = {}) {
     this.dataDir = dataDir; this.emit = emit; this.options = options;
     this.modelDir = path.join(dataDir, 'models');
@@ -92,8 +93,13 @@ export class CrocService {
   async init() {
     await fs.mkdir(this.modelDir, { recursive: true });
     try { this.state = { ...this.state, ...JSON.parse(await fs.readFile(path.join(this.dataDir, 'state.json'), 'utf8')) }; }
-    catch (e) { if (e.code !== 'ENOENT') throw new Error('CrocBot could not read saved data. It has not overwritten it. ' + cleanError(e)); }
+    catch (e) { if (e.code !== 'ENOENT') throw new Error('AirloBot could not read saved data. It has not overwritten it. ' + cleanError(e)); }
     this.state.settings = { ...DEFAULT_SETTINGS, ...this.state.settings };
+    // Update only the former stock identity; never rewrite a user's instructions.
+    if (this.state.settings.systemPrompt === DEFAULT_SETTINGS.systemPrompt.replace('AirloBot', 'CrocBot')) this.state.settings.systemPrompt = DEFAULT_SETTINGS.systemPrompt;
+    if (!['graphite', 'midnight', 'glass'].includes(this.state.settings.theme)) this.state.settings.theme = 'graphite';
+    if (!Number.isInteger(this.state.settings.glassIntensity) || this.state.settings.glassIntensity < 20 || this.state.settings.glassIntensity > 90) this.state.settings.glassIntensity = 60;
+    if (typeof this.state.settings.reducedMotion !== 'boolean') this.state.settings.reducedMotion = false;
     for (const c of this.state.conversations) for (const m of c.messages) if (m.status === 'streaming') m.status = 'interrupted';
     for (const d of this.state.downloads) if (['downloading', 'verifying', 'importing'].includes(d.status)) d.status = 'paused';
     await this.save(); return this.snapshot();
@@ -109,7 +115,10 @@ export class CrocService {
   }
   changed() { this.emit({ type: 'state', state: this.snapshot() }); }
   async settings(patch) {
-    const s = this.state.settings;
+    const s = { ...this.state.settings };
+    if (patch.theme !== undefined) { if (!['graphite', 'midnight', 'glass'].includes(patch.theme)) throw new Error('Choose Graphite, Midnight, or Liquid Glass.'); s.theme = patch.theme; }
+    if (patch.glassIntensity !== undefined) { if (!Number.isInteger(patch.glassIntensity) || patch.glassIntensity < 20 || patch.glassIntensity > 90) throw new Error('Glass intensity must be 20–90.'); s.glassIntensity = patch.glassIntensity; }
+    if (patch.reducedMotion !== undefined) { if (typeof patch.reducedMotion !== 'boolean') throw new Error('Invalid motion setting.'); s.reducedMotion = patch.reducedMotion; }
     if (patch.model !== undefined) { if (typeof patch.model !== 'string' || patch.model.length > 300) throw new Error('Invalid model.'); s.model = patch.model; }
     if (patch.temperature !== undefined) { if (!Number.isFinite(patch.temperature) || patch.temperature < 0 || patch.temperature > 2) throw new Error('Temperature must be between 0 and 2.'); s.temperature = patch.temperature; }
     if (patch.maxTokens !== undefined) { if (!Number.isInteger(patch.maxTokens) || patch.maxTokens < 64 || patch.maxTokens > 4096) throw new Error('Response length must be 64–4096 tokens.'); s.maxTokens = patch.maxTokens; }
@@ -119,6 +128,7 @@ export class CrocService {
       s.offline = patch.offline;
       if (s.offline) for (const job of this.downloadJobs.values()) job.abort();
     }
+    this.state.settings = s;
     await this.save(); this.changed(); return this.snapshot();
   }
   async status() {
