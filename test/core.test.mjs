@@ -73,7 +73,7 @@ test('rename migrates only the stock identity and preserves conversations and cu
   await s.save();
   const migrated = new AirloService(s.dataDir); await migrated.init();
   assert.equal(migrated.state.settings.systemPrompt, DEFAULT_SETTINGS.systemPrompt);
-  assert.equal(migrated.state.settings.theme, 'graphite');
+  assert.equal(migrated.state.settings.theme, 'dark');
   assert.equal(migrated.state.conversations[0].id, id);
   assert.equal(migrated.state.conversations[0].messages[0].content, 'My CrocBot project');
   const custom = 'You are CrocBot. Help me with my own project.';

@@ -1,0 +1,72 @@
+AIRLOBOT 0.5 — TASK CONTROLS AND REPOSITORY PRIVACY
+2026-11-01
+
+TASK BUDGETS
+
+The old 20-step limit counted both model requests and tool actions, with further
+10-turn primary and 6-turn helper caps. These are removed for new tasks.
+
+Settings > Project tasks now saves a shared model-turn budget (default 100) and
+a separate time limit (default 60 minutes). Tool calls do not consume extra model
+turns. Choose Unlimited turns and No time limit to remove both configured caps.
+The primary agent and read-only helpers share the selected budget. Each task
+snapshots its budget at creation; changing Settings affects the next task.
+
+Stop still cancels parent/helper work. Six consecutive identical tool exchanges
+with unchanged results stop a stuck agent. Activity retains the latest 500 events
+and displays the number discarded; final results/proposals remain. The runtime's
+context, a 120-second timeout per request, up to 2 read-only helpers, up to 5
+proposals, and existing file/read/write limits remain. Per-turn response capacity
+is now 4,096 tokens. Unlimited is not a guarantee of task success or infinite
+model context. Reaching a configured budget is shown as limited, with the actual
+budget in the message. It does not apply files or automatically resume work.
+
+RECENT WORK AND ASK MODE
+
+Each recent task and conversation has a delete control with confirmation. A task
+deletion removes its history, draft, helper activity and proposals from local
+state. It never deletes project files or reverses changes already applied. The
+host refuses deletion of the running task or during a file review. Copies in
+backups remain until the user separately removes them; deletion is not secure
+disk erasure. This release does not delete any existing user work automatically.
+
+The folder picker appears only in Work on project. Ask removes that control and
+keeps its no-file-tools behavior. Switching modes preserves drafts and the saved
+project selection. The new-work button says New chat in Ask mode.
+
+REPOSITORY PRIVACY
+
+Local data, conversations, drafts, task records, project excerpts, downloaded
+weights, runtime caches, backups, screenshots and test output are ignored by Git
+and excluded from the Windows package. Source/test fixtures contain synthetic
+examples only. Git commits use a GitHub noreply address.
+
+The audit checked tracked files and fetched Git history for private runtime paths,
+personal home paths, recognizable access tokens and private keys. No matches
+were found. No saved-data files were removed from Git history because none were
+tracked. Local audit reports remain under ignored test-results/.
+
+Run npm run privacy:check before publishing. It reads staged Git objects, rather
+than trusting the working copy, and reports filenames/categories without secret
+values. The versioned .githooks/pre-push scans reachable history before a push;
+enable it for each checkout using: git config core.hooksPath .githooks
+This checkout has it enabled. Node.js must be available; the Windows workspace's
+portable Node is supported as a fallback. Windows/Linux CI also runs the check.
+
+These pattern checks reduce accidental disclosure; they are not comprehensive
+personal-data detection. Hooks can be bypassed and do not apply to GitHub web
+edits. Keep source review and .gitignore in place. Do not force-add runtime data
+or commit screenshots/logs of real conversations. No conversation data is sent
+to GitHub by the application itself.
+
+VALIDATION
+
+32 isolated tests pass, including a 27-model-turn primary/helper task, 150-turn
+Unlimited cancellation, time-limit classification, shared-budget exhaustion,
+bounded activity, deletion without project writes, and a temporary Git repository
+showing that force-added data and staged credentials fail the privacy check.
+
+The Electron production-renderer checks cover task-budget controls, deletion
+confirmation/cancel, running-task deletion disabled, and the project picker
+appearing/disappearing when switching modes, alongside the existing draft,
+review, theme, accessibility and connection scenarios.

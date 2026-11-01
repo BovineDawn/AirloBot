@@ -1,0 +1,93 @@
+AIRLOBOT 0.4 — FOCUS WORKSPACE
+2026-11-01
+
+The workspace now shares one recent-work sidebar, a project selector, and one
+composer. Choose Ask for conversation without file tools, or Work on project for
+bounded local agent work. A task result stays in the main reading area. Changes,
+helpers, and activity appear only when opened, in a side panel or a modal drawer
+on smaller windows. Proposed files show a compact changed section plus the full
+before/after text; Apply and Reject still call the host's reviewed-write checks.
+
+Drafts are stored per conversation or task, including new-work drafts. Navigation
+and restarting preserve them. A failed first send retains its draft in the newly
+created conversation. Deleting a conversation removes its draft too. Sidebar
+collapse is saved. Ctrl+B toggles it; Ctrl+I focuses the composer. Enter sends or
+runs; Shift+Enter inserts a new line. No work is submitted by changing modes.
+
+RESPONSE LIMITS
+
+Settings > Responses offers Unlimited (model context), plus fixed caps from
+256 to 32,768 tokens. Existing custom caps are retained. The former stock cap of
+1,024 becomes Unlimited when migrating a pre-0.4 data file. Unlimited sends
+max_tokens: -1 to the fixed local LM Studio API; it does not promise an infinite
+context window. Stop remains available, and a two-million-character response
+guard prevents unbounded display/storage growth. Model reasoning can consume
+part of the available token budget even when disabled in the request.
+
+When the runtime reports finish_reason=length, the last response offers Continue
+response. This is a user-triggered follow-up, not an automatic generation loop.
+Older complete turns are omitted when needed to fit a 24,000-character request
+budget, including the system prompt. The reply shows how many messages were
+omitted; saved history is never rewritten. This character guard is approximate,
+not a tokenizer. A model's real context can still be exceeded by dense code,
+non-English text, long instructions, or a runtime loaded with a smaller context.
+Use a shorter request/new conversation if the runtime rejects it. Loading an
+unloaded model still requests at most 8,192 context tokens to bound local memory.
+The chat response preference does not remove the agent's step/time/token budgets.
+
+PRIVACY AND SECURITY
+
+Inference remains fixed to http://127.0.0.1:1234, with redirects rejected.
+There is no cloud fallback, telemetry, or remote renderer content. Ask has no file
+tools. Project tools retain folder confinement, sensitive-path/link exclusions,
+read-only helpers, explicit per-file review, and stale-file checks. Hugging Face
+is accessed only through library operations, and Offline mode blocks those.
+
+Drafts, chats, source excerpts, proposals and settings remain local readable JSON;
+AirloBot does not encrypt them. Other users/processes with filesystem access can
+read them. This is not an OS sandbox or control over LM Studio's own networking.
+Closing waits for cancelled generation and pending state saves to settle.
+Updating the app must preserve data/; packaged artifacts must exclude all user
+data, model weights, research extracts and test results.
+
+APPEARANCE
+
+Settings ends with Light, Dark, and Liquid Glass. Graphite/Midnight migrate to
+Dark; saved Glass preferences remain. Liquid Glass is an independent CSS
+interpretation of Apple's material direction: floating rounded navigation,
+frosted silver-blue surfaces, luminous edges, layered highlights and soft depth.
+Content and file reviews keep stable readable surfaces. It is not Apple's native
+macOS material or an implementation of Apple's optical renderer.
+
+Glass diffusion, Reduce transparency, and Reduce motion save automatically.
+System preferences are respected. Status uses green/red text plus a label and
+dot, with darker semantic colors in light themes for contrast. Model metadata is
+in Local engine details, reached through the status or composer model control.
+
+Design references (official Apple materials reviewed November 1, 2026):
+https://developer.apple.com/videos/play/wwdc2025/219/
+https://developer.apple.com/design/human-interface-guidelines/materials
+Runtime reference and local compatibility check:
+https://lmstudio.ai/docs/developer/openai-compat/chat-completions
+https://lmstudio.ai/docs/developer/rest/endpoints
+
+VALIDATION
+
+23 isolated tests cover existing security boundaries plus migration, response
+caps, draft persistence/validation, recent-turn context and shutdown cancellation.
+The production Electron renderer harness exercises draft navigation and failed
+send recovery, response settings, Continue, explicit review, responsive drawers,
+and 12 theme/connection combinations. Remote image/script fixtures do not load.
+Screenshots and report: ignored test-results/focus-ui/.
+
+Real local Gemma smoke: Unlimited with Offline mode enabled completed 2,482
+output tokens (198 reasoning tokens), 2,621 total, with finish reason stop in
+24.7 seconds. The full answer survived restart. This verifies compatibility and
+removal of the old cap; it is not a general model quality or maximum-length test.
+Report: ignored test-results/long-response-report.json.
+
+Reproduce after npm run build:
+  npx --no-install electron scripts/focus-ui-test.cjs
+  node scripts/response-live-test.mjs
+The first command uses synthetic fixtures. The second requires the user's local
+Gemma model/runtime, writes disposable test data, and makes no Hub requests.
