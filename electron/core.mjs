@@ -7,12 +7,13 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { ProjectFiles } from './project.mjs';
 import { AgentRunner, makeTask } from './agents.mjs';
+import { chatContext, validResponseLimit } from './chat-context.mjs';
 
 export const MODEL = 'gemma-4-e4b-uncensored-hauhaucs-aggressive';
 export const LOCAL_ORIGIN = 'http://127.0.0.1:1234';
 export const DEFAULT_SETTINGS = {
-  model: MODEL, temperature: 0.65, maxTokens: 1024, offline: false,
-  theme: 'graphite', glassIntensity: 60, reducedMotion: false,
+  model: MODEL, temperature: 0.65, maxTokens: -1, offline: false,
+  theme: 'dark', glassIntensity: 60, reducedMotion: false, reducedTransparency: false,
   systemPrompt: 'You are AirloBot, a helpful assistant running locally on this computer. Be clear, practical, and honest about uncertainty. You have no web access or computer tools. Do not claim to perform actions you cannot perform.'
 };
 const now = () => new Date().toISOString();
@@ -89,16 +90,22 @@ export class AirloService {
     this.dataDir = dataDir; this.emit = emit; this.options = options;
     this.modelDir = path.join(dataDir, 'models');
     this.lmsPath = options.lmsPath || path.join(os.homedir(), '.lmstudio', 'bin', 'lms.exe');
-    this.state = { version: 2, settings: { ...DEFAULT_SETTINGS }, conversations: [], downloads: [], project: null, tasks: [] };
+    this.state = { version: 3, settings: { ...DEFAULT_SETTINGS }, conversations: [], downloads: [], project: null, tasks: [], workspace: { selected: 'new:task', sidebarCollapsed: false, drafts: {} } };
     this.downloadJobs = new Map(); this.activeChat = null; this.saveChain = Promise.resolve();
-    this.activeTask = null; this.agentPromise = null; this.reviewing = false;
+    this.activeTask = null; this.agentPromise = null; this.chatPromise = null; this.reviewing = false;
   }
   async init() {
     await fs.mkdir(this.modelDir, { recursive: true });
     try { this.state = { ...this.state, ...JSON.parse(await fs.readFile(path.join(this.dataDir, 'state.json'), 'utf8')) }; }
     catch (e) { if (e.code !== 'ENOENT') throw new Error('AirloBot could not read saved data. It has not overwritten it. ' + cleanError(e)); }
+    const oldVersion = this.state.version;
     this.state.settings = { ...DEFAULT_SETTINGS, ...this.state.settings };
-    this.state.version = 2;
+    this.state.version = 3;
+    // Retain custom caps; the former stock cap truncated ordinary answers.
+    if (oldVersion < 3 && this.state.settings.maxTokens === 1024) this.state.settings.maxTokens = -1;
+    if (!validResponseLimit(this.state.settings.maxTokens)) this.state.settings.maxTokens = DEFAULT_SETTINGS.maxTokens;
+    this.state.workspace = { selected: 'new:task', sidebarCollapsed: false, drafts: {}, ...this.state.workspace };
+    this.state.workspace.drafts ||= {};
     this.state.tasks ||= [];
     for (const task of this.state.tasks) {
       if (task.status === 'running') { task.status = 'interrupted'; task.error = 'AirloBot closed during this task. Run it again to start a fresh attempt.'; }
@@ -107,9 +114,10 @@ export class AirloService {
     }
     // Update only the former stock identity; never rewrite a user's instructions.
     if (this.state.settings.systemPrompt === DEFAULT_SETTINGS.systemPrompt.replace('AirloBot', 'CrocBot')) this.state.settings.systemPrompt = DEFAULT_SETTINGS.systemPrompt;
-    if (!['graphite', 'midnight', 'glass'].includes(this.state.settings.theme)) this.state.settings.theme = 'graphite';
+    if (!['light', 'dark', 'glass'].includes(this.state.settings.theme)) this.state.settings.theme = 'dark';
     if (!Number.isInteger(this.state.settings.glassIntensity) || this.state.settings.glassIntensity < 20 || this.state.settings.glassIntensity > 90) this.state.settings.glassIntensity = 60;
     if (typeof this.state.settings.reducedMotion !== 'boolean') this.state.settings.reducedMotion = false;
+    if (typeof this.state.settings.reducedTransparency !== 'boolean') this.state.settings.reducedTransparency = false;
     for (const c of this.state.conversations) for (const m of c.messages) if (m.status === 'streaming') m.status = 'interrupted';
     for (const d of this.state.downloads) if (['downloading', 'verifying', 'importing'].includes(d.status)) d.status = 'paused';
     await this.save(); return this.snapshot();
@@ -127,12 +135,13 @@ export class AirloService {
   async settings(patch) {
     if (patch.model !== undefined && (this.activeTask || this.activeChat)) throw new Error('Stop the current work before changing models.');
     const s = { ...this.state.settings };
-    if (patch.theme !== undefined) { if (!['graphite', 'midnight', 'glass'].includes(patch.theme)) throw new Error('Choose Graphite, Midnight, or Liquid Glass.'); s.theme = patch.theme; }
+    if (patch.theme !== undefined) { if (!['light', 'dark', 'glass'].includes(patch.theme)) throw new Error('Choose Light, Dark, or Liquid Glass.'); s.theme = patch.theme; }
     if (patch.glassIntensity !== undefined) { if (!Number.isInteger(patch.glassIntensity) || patch.glassIntensity < 20 || patch.glassIntensity > 90) throw new Error('Glass intensity must be 20–90.'); s.glassIntensity = patch.glassIntensity; }
     if (patch.reducedMotion !== undefined) { if (typeof patch.reducedMotion !== 'boolean') throw new Error('Invalid motion setting.'); s.reducedMotion = patch.reducedMotion; }
+    if (patch.reducedTransparency !== undefined) { if (typeof patch.reducedTransparency !== 'boolean') throw new Error('Invalid transparency setting.'); s.reducedTransparency = patch.reducedTransparency; }
     if (patch.model !== undefined) { if (typeof patch.model !== 'string' || patch.model.length > 300) throw new Error('Invalid model.'); s.model = patch.model; }
     if (patch.temperature !== undefined) { if (!Number.isFinite(patch.temperature) || patch.temperature < 0 || patch.temperature > 2) throw new Error('Temperature must be between 0 and 2.'); s.temperature = patch.temperature; }
-    if (patch.maxTokens !== undefined) { if (!Number.isInteger(patch.maxTokens) || patch.maxTokens < 64 || patch.maxTokens > 4096) throw new Error('Response length must be 64–4096 tokens.'); s.maxTokens = patch.maxTokens; }
+    if (patch.maxTokens !== undefined) { if (!validResponseLimit(patch.maxTokens)) throw new Error('Choose unlimited (-1) or 64–32768 response tokens.'); s.maxTokens = patch.maxTokens; }
     if (patch.systemPrompt !== undefined) { if (typeof patch.systemPrompt !== 'string' || patch.systemPrompt.length > 12000) throw new Error('Instructions are too long.'); s.systemPrompt = patch.systemPrompt; }
     if (patch.offline !== undefined) {
       if (typeof patch.offline !== 'boolean') throw new Error('Invalid offline setting.');
@@ -187,7 +196,25 @@ export class AirloService {
   }
   async deleteConversation(id) {
     if (this.activeChat?.conversationId === id) throw new Error('Stop the response before deleting this chat.');
-    this.state.conversations = this.state.conversations.filter(c => c.id !== id); await this.save(); this.changed();
+    this.state.conversations = this.state.conversations.filter(c => c.id !== id);
+    delete this.state.workspace.drafts['chat:' + id];
+    if (this.state.workspace.selected === 'chat:' + id) this.state.workspace.selected = 'new:chat';
+    await this.save(); this.changed();
+  }
+  async workspace(patch) {
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch) || Object.keys(patch).some(k => !['selected', 'sidebarCollapsed', 'draft'].includes(k))) throw new Error('Invalid workspace preference.');
+    const validKey = key => ['new:chat', 'new:task'].includes(key) || (typeof key === 'string' && (this.state.conversations.some(c => key === 'chat:' + c.id) || this.state.tasks.some(t => key === 'task:' + t.id)));
+    const next = structuredClone(this.state.workspace);
+    if (patch.selected !== undefined) { if (!validKey(patch.selected)) throw new Error('Work item not found.'); next.selected = patch.selected; }
+    if (patch.sidebarCollapsed !== undefined) { if (typeof patch.sidebarCollapsed !== 'boolean') throw new Error('Invalid sidebar preference.'); next.sidebarCollapsed = patch.sidebarCollapsed; }
+    if (patch.draft !== undefined) {
+      const d = patch.draft;
+      if (!d || typeof d !== 'object' || Array.isArray(d) || Object.keys(d).some(k => !['key', 'text'].includes(k)) || !validKey(d.key) || typeof d.text !== 'string' || d.text.length > (d.key === 'new:chat' || d.key.startsWith('chat:') ? 24000 : 4000)) throw new Error('Invalid local draft.');
+      if (d.text) next.drafts[d.key] = d.text; else delete next.drafts[d.key];
+      if (Object.keys(next.drafts).length > 200) throw new Error('There are 200 saved drafts. Clear an old draft before adding another.');
+    }
+    this.state.workspace = next;
+    await this.save(); return structuredClone(next);
   }
   async send({ conversationId, content }) {
     if (this.activeTask) throw new Error('Wait for the project task or stop it before starting a chat response.');
@@ -202,20 +229,20 @@ export class AirloService {
     const answer = { id: randomUUID(), role: 'assistant', content: '', reasoning: '', createdAt: now(), status: 'streaming', model: this.state.settings.model };
     c.messages.push(answer); c.updatedAt = now();
     await this.save(); this.changed();
-    this.generate(c, answer, controller).catch(e => this.emit({ type: 'error', message: cleanError(e) }));
+    this.chatPromise = this.generate(c, answer, controller).catch(e => this.emit({ type: 'error', message: cleanError(e) }));
     return answer.id;
   }
   async generate(c, answer, controller) {
     const started = Date.now();
     try {
       // This one fixed loopback origin is the only destination of conversation data.
-      const history = c.messages.filter(m => m.id !== answer.id && m.content && ['complete', 'stopped'].includes(m.status)).slice(-16).map(m => ({ role: m.role, content: m.content }));
-      const totalChars = history.reduce((n, m) => n + m.content.length, 0);
-      if (totalChars > 24000) throw new Error('This conversation exceeds the starter context budget. Start a new chat or shorten the message.');
       const s = { ...this.state.settings };
+      const context = chatContext(c, answer.id, s.systemPrompt);
+      answer.omittedMessages = context.omitted;
+      answer.responseLimit = s.maxTokens;
       const response = await localFetch('/v1/chat/completions', {
         method: 'POST', signal: controller.signal,
-        body: JSON.stringify({ model: s.model, messages: [{ role: 'system', content: s.systemPrompt }, ...history], stream: true, stream_options: { include_usage: true }, temperature: s.temperature, max_tokens: s.maxTokens, reasoning: { enabled: false } })
+        body: JSON.stringify({ model: s.model, messages: context.messages, stream: true, stream_options: { include_usage: true }, temperature: s.temperature, max_tokens: s.maxTokens, reasoning: { enabled: false } })
       });
       let lastEmit = 0;
       for await (const event of sseJSON(response.body)) {
@@ -223,6 +250,7 @@ export class AirloService {
         const delta = event.choices?.[0]?.delta;
         if (delta?.content) answer.content += delta.content;
         if (delta?.reasoning_content || delta?.reasoning) answer.reasoning += delta.reasoning_content || delta.reasoning;
+        if (answer.content.length + answer.reasoning.length > 2000000) { answer.error = 'Response reached the local display/storage limit.'; controller.abort(); throw new Error(answer.error); }
         if (event.usage) answer.usage = event.usage;
         if (event.choices?.[0]?.finish_reason) answer.finishReason = event.choices[0].finish_reason;
         if (Date.now() - lastEmit > 45) { this.emit({ type: 'token', conversationId: c.id, message: { ...answer } }); lastEmit = Date.now(); }
@@ -378,5 +406,5 @@ export class AirloService {
     await this.runLms(['import', safeModelPath(this.modelDir, d.repo, d.filename), '--hard-link', '--user-repo', d.repo, '--yes'], 60000);
     d.imported = true; d.importError = null; await this.save(); this.changed();
   }
-  async shutdown() { this.stopChat(); this.activeTask?.controller.abort(); for (const job of this.downloadJobs.values()) job.abort(); await this.agentPromise; await this.save(); }
+  async shutdown() { this.stopChat(); this.activeTask?.controller.abort(); for (const job of this.downloadJobs.values()) job.abort(); await Promise.all([this.agentPromise, this.chatPromise]); await this.save(); }
 }

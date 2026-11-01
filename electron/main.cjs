@@ -29,7 +29,7 @@ if (primaryInstance) app.whenReady().then(async () => {
   console.log('AirloBot local state ready');
   const methods = {
     snapshot: () => service.snapshot(), status: () => service.status(), startRuntime: () => service.startRuntime(),
-    settings: arg => service.settings(arg), loadModel: arg => service.loadModel(arg), unloadModel: arg => service.unloadModel(arg),
+    settings: arg => service.settings(arg), workspace: arg => service.workspace(arg), loadModel: arg => service.loadModel(arg), unloadModel: arg => service.unloadModel(arg),
     newConversation: () => service.newConversation(), deleteConversation: arg => service.deleteConversation(arg),
     send: arg => service.send(arg), stopChat: () => service.stopChat(), searchModels: arg => service.searchModels(arg),
     modelFiles: arg => service.modelFiles(arg), startDownload: arg => service.startDownload(arg),
@@ -65,5 +65,13 @@ if (primaryInstance) app.whenReady().then(async () => {
   win.focus();
   console.log('AirloBot interface loaded');
 }).catch(error => { dialog.showErrorBox('AirloBot could not start', String(error.stack || error)); app.quit(); });
-app.on('before-quit', () => { service?.shutdown().catch(() => {}); });
+let finishing = false, finished = false;
+app.on('before-quit', event => {
+  if (!service || finished) return;
+  event.preventDefault();
+  if (finishing) return;
+  finishing = true;
+  service.shutdown().catch(error => console.error('Could not finish saving local state:', error.message))
+    .finally(() => { finished = true; app.quit(); });
+});
 app.on('window-all-closed', () => app.quit());
