@@ -11,7 +11,7 @@ await fs.writeFile(path.join(project, 'README.txt'), 'This is a tiny addition li
 const report = { startedAt: new Date().toISOString(), project, model: MODEL };
 const service = new AirloService(path.join(root, 'state'));
 try {
-  await service.init(); await service.loadModel(MODEL); await service.settings({ offline: true }); await service.selectProject(project);
+  await service.init(); await service.loadModel(MODEL); await service.settings({ offline: true, taskMaxTurns: 100, taskMaxMinutes: 3 }); await service.selectProject(project);
   const id = await service.startTask({ goal: 'Read README.txt and calculator.js. Create a reviewer helper to inspect add in calculator.js against the README requirement. Use the helper findings, read the file yourself if needed, and propose a corrected calculator.js for user review. Do not run commands. End with the evidence and proposal status.' });
   await service.agentPromise;
   const task = service.state.tasks.find(t => t.id === id); report.task = task;

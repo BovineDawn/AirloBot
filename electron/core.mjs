@@ -8,12 +8,14 @@ import { once } from 'node:events';
 import { ProjectFiles } from './project.mjs';
 import { AgentRunner, makeTask } from './agents.mjs';
 import { chatContext, validResponseLimit } from './chat-context.mjs';
+import { DEFAULT_TASK_BUDGET, TaskLimitError, validTaskTurns, validTaskMinutes } from './task-budget.mjs';
 
 export const MODEL = 'gemma-4-e4b-uncensored-hauhaucs-aggressive';
 export const LOCAL_ORIGIN = 'http://127.0.0.1:1234';
 export const DEFAULT_SETTINGS = {
   model: MODEL, temperature: 0.65, maxTokens: -1, offline: false,
   theme: 'dark', glassIntensity: 60, reducedMotion: false, reducedTransparency: false,
+  taskMaxTurns: DEFAULT_TASK_BUDGET.maxTurns, taskMaxMinutes: DEFAULT_TASK_BUDGET.maxMinutes,
   systemPrompt: 'You are AirloBot, a helpful assistant running locally on this computer. Be clear, practical, and honest about uncertainty. You have no web access or computer tools. Do not claim to perform actions you cannot perform.'
 };
 const now = () => new Date().toISOString();
@@ -104,6 +106,8 @@ export class AirloService {
     // Retain custom caps; the former stock cap truncated ordinary answers.
     if (oldVersion < 3 && this.state.settings.maxTokens === 1024) this.state.settings.maxTokens = -1;
     if (!validResponseLimit(this.state.settings.maxTokens)) this.state.settings.maxTokens = DEFAULT_SETTINGS.maxTokens;
+    if (!validTaskTurns(this.state.settings.taskMaxTurns)) this.state.settings.taskMaxTurns = DEFAULT_SETTINGS.taskMaxTurns;
+    if (!validTaskMinutes(this.state.settings.taskMaxMinutes)) this.state.settings.taskMaxMinutes = DEFAULT_SETTINGS.taskMaxMinutes;
     this.state.workspace = { selected: 'new:task', sidebarCollapsed: false, drafts: {}, ...this.state.workspace };
     this.state.workspace.drafts ||= {};
     this.state.tasks ||= [];
@@ -142,6 +146,8 @@ export class AirloService {
     if (patch.model !== undefined) { if (typeof patch.model !== 'string' || patch.model.length > 300) throw new Error('Invalid model.'); s.model = patch.model; }
     if (patch.temperature !== undefined) { if (!Number.isFinite(patch.temperature) || patch.temperature < 0 || patch.temperature > 2) throw new Error('Temperature must be between 0 and 2.'); s.temperature = patch.temperature; }
     if (patch.maxTokens !== undefined) { if (!validResponseLimit(patch.maxTokens)) throw new Error('Choose unlimited (-1) or 64–32768 response tokens.'); s.maxTokens = patch.maxTokens; }
+    if (patch.taskMaxTurns !== undefined) { if (!validTaskTurns(patch.taskMaxTurns)) throw new Error('Choose unlimited (-1) or 10–1000 task model turns.'); s.taskMaxTurns = patch.taskMaxTurns; }
+    if (patch.taskMaxMinutes !== undefined) { if (!validTaskMinutes(patch.taskMaxMinutes)) throw new Error('Choose no time limit (-1) or 1–1440 minutes.'); s.taskMaxMinutes = patch.taskMaxMinutes; }
     if (patch.systemPrompt !== undefined) { if (typeof patch.systemPrompt !== 'string' || patch.systemPrompt.length > 12000) throw new Error('Instructions are too long.'); s.systemPrompt = patch.systemPrompt; }
     if (patch.offline !== undefined) {
       if (typeof patch.offline !== 'boolean') throw new Error('Invalid offline setting.');
@@ -272,11 +278,11 @@ export class AirloService {
     if (this.activeTask || this.activeChat || this.reviewing) throw new Error('Wait for the current work or stop it first.');
     if (!this.state.project) throw new Error('Choose a project folder first.');
     if (typeof goal !== 'string' || !goal.trim() || goal.length > 4000) throw new Error('Enter a task of 1–4000 characters.');
-    const task = makeTask(goal.trim(), this.state.project, this.state.settings.model);
+    const task = makeTask(goal.trim(), this.state.project, this.state.settings.model, { maxTurns: this.state.settings.taskMaxTurns, maxMinutes: this.state.settings.taskMaxMinutes });
     const controller = new AbortController();
     this.activeTask = { id: task.id, controller };
     this.state.tasks.unshift(task);
-    const timer = setTimeout(() => controller.abort(), 600000);
+    const timer = task.budget.maxMinutes === -1 ? null : setTimeout(() => controller.abort(new TaskLimitError(`Task reached its ${task.budget.maxMinutes}-minute time limit. Increase the Project tasks budget in Settings to allow longer work.`)), task.budget.maxMinutes * 60000);
     const runner = new AgentRunner(task, {
       signal: controller.signal,
       changed: async () => { await this.save(); this.changed(); },
@@ -292,6 +298,14 @@ export class AirloService {
     return task.id;
   }
   stopTask(id) { if (id !== this.activeTask?.id) throw new Error('That task is not running.'); this.activeTask.controller.abort(); }
+  async deleteTask(id) {
+    if (typeof id !== 'string' || !this.state.tasks.some(t => t.id === id)) throw new Error('Task not found.');
+    if (this.activeTask?.id === id || this.reviewing) throw new Error('Stop this task and finish the file review before deleting it.');
+    this.state.tasks = this.state.tasks.filter(t => t.id !== id);
+    delete this.state.workspace.drafts['task:' + id];
+    if (this.state.workspace.selected === 'task:' + id) this.state.workspace.selected = 'new:task';
+    await this.save(); this.changed();
+  }
   async reviewChange({ taskId, proposalId, decision }) {
     if (this.activeTask || this.reviewing) throw new Error('Wait for the task or current file review to finish.');
     if (!['apply', 'reject'].includes(decision)) throw new Error('Invalid review decision.');

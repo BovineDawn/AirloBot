@@ -27,6 +27,8 @@ ipcMain.handle('ui-fixture', (_event, method, arg) => {
   if (method === 'newConversation') { state.conversations.push({ id: 'created', title: 'New conversation', messages: [], updatedAt: new Date().toISOString() }); emit(); return 'created'; }
   if (method === 'send') { if (failSend) throw new Error('Fixture connection failure'); return 'answer'; }
   if (method === 'reviewChange') { state.tasks[0].proposals[0].status = arg.decision === 'apply' ? 'applied' : 'rejected'; emit(); }
+  if (method === 'deleteTask') { state.tasks = state.tasks.filter(t => t.id !== arg); delete state.workspace.drafts['task:' + arg]; emit(); }
+  if (method === 'deleteConversation') { state.conversations = state.conversations.filter(c => c.id !== arg); delete state.workspace.drafts['chat:' + arg]; emit(); }
   if (method === 'searchModels') return [];
 });
 app.whenReady().then(async () => {
@@ -38,7 +40,7 @@ app.whenReady().then(async () => {
   ], tasks: [{ id: 'task1', goal: 'Review the project and suggest a small improvement', project, updatedAt: '2026-11-01T11:00:00Z', status: 'completed', steps: 6, result: 'I inspected the project with a reviewer helper.\n\nThe welcome message can be clearer. **One file change is ready for your review.**', agents: [{ id: 'primary', name: 'AirloBot', role: 'primary', status: 'completed', goal: 'Review the project' }, { id: 'helper', name: 'Reviewer', role: 'reviewer', status: 'completed', goal: 'Inspect the welcome message', result: 'The title should describe the action.' }], events: [{ id: 'event1', type: 'tool', agent: 'Reviewer', at: '2026-11-01T11:00:00Z', detail: 'read_file {"path":"welcome.txt"}' }], proposals: [{ id: 'proposal1', path: 'welcome.txt', status: 'pending', reason: 'Make the next action clear.', before: 'Welcome\nOpen the app\n', after: 'Welcome\nChoose a project to begin\n' }] }] };
   const model = { key: 'fixture', display_name: 'Gemma 4 E4B', quantization: { name: 'Q4_K_M' }, params_string: '7.5B', loaded_instances: [{}] };
   status = { connected: true, models: [model], loaded: [model] };
-  await fs.writeFile(path.join(out, 'preload.cjs'), `const {contextBridge,ipcRenderer}=require('electron'); const methods=${JSON.stringify(['snapshot','status','settings','workspace','loadModel','newConversation','send','reviewChange','searchModels'])}; contextBridge.exposeInMainWorld('airlo',Object.assign(Object.fromEntries(methods.map(m=>[m,arg=>ipcRenderer.invoke('ui-fixture',m,arg)])),{subscribe:fn=>{const f=(_e,v)=>fn(v);ipcRenderer.on('ui-event',f);return()=>ipcRenderer.removeListener('ui-event',f);}}));`);
+  await fs.writeFile(path.join(out, 'preload.cjs'), `const {contextBridge,ipcRenderer}=require('electron'); const methods=${JSON.stringify(['snapshot','status','settings','workspace','loadModel','newConversation','send','reviewChange','searchModels','deleteTask','deleteConversation'])}; contextBridge.exposeInMainWorld('airlo',Object.assign(Object.fromEntries(methods.map(m=>[m,arg=>ipcRenderer.invoke('ui-fixture',m,arg)])),{subscribe:fn=>{const f=(_e,v)=>fn(v);ipcRenderer.on('ui-event',f);return()=>ipcRenderer.removeListener('ui-event',f);}}));`);
   protocol.handle('airlobot-test', async request => {
     const url = new URL(request.url), base = path.join(root, 'dist');
     const file = path.resolve(base, '.' + decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname));
@@ -52,11 +54,17 @@ app.whenReady().then(async () => {
   await win.loadURL('airlobot-test://app/');
   for (let n = 0; n < 50; n++) { if (await js('Boolean(document.querySelector(".connection"))')) break; await delay(100); }
   await draft('An unsent project goal');
+  assert.equal(await js('Boolean(document.querySelector(".project-control"))'), true);
   await select('Work mode', 'chat'); await draft('An unsent question');
+  assert.equal(await js('Boolean(document.querySelector(".project-control"))'), false);
   await select('Work mode', 'task'); assert.equal(await js('document.querySelector("#work-prompt").value'), 'An unsent project goal');
+  assert.equal(await js('Boolean(document.querySelector(".project-control"))'), true);
   await select('Work mode', 'chat'); assert.equal(await js('document.querySelector("#work-prompt").value'), 'An unsent question');
   await click('Settings'); await select('Response token limit', '8192'); await click('Save response preferences'); assert.equal(state.settings.maxTokens, 8192);
   await select('Response token limit', '-1'); await click('Save response preferences'); assert.equal(state.settings.maxTokens, -1);
+  await select('Task turn limit', '-1'); assert.equal(state.settings.taskMaxTurns, -1);
+  await select('Task time limit', '-1'); assert.equal(state.settings.taskMaxMinutes, -1);
+  await select('Task turn limit', '100'); await select('Task time limit', '60');
   await click('← Workspace'); assert.equal(await js('document.querySelector("#work-prompt").value'), 'An unsent question');
   failSend = true; await click('Send'); assert.equal(await js('document.querySelector("#work-prompt").value'), 'An unsent question');
   assert.equal(state.workspace.selected, 'chat:created'); assert.equal(state.workspace.drafts['chat:created'], 'An unsent question'); failSend = false;
@@ -105,6 +113,18 @@ app.whenReady().then(async () => {
   await js(`document.querySelector('[aria-label="Collapse sidebar"]').click()`); await delay(90); assert.equal(state.workspace.sidebarCollapsed, true);
   assert.ok(await js('document.querySelector(".sidebar").getBoundingClientRect().width<100'));
   await click('Model library'); assert.equal(calls.filter(c=>c.method==='searchModels').length, 0);
+  await click('← Workspace');
+  await js('Array.from(document.querySelectorAll(".history-item")).find(b=>b.title.startsWith("Review the project")).click()'); await delay(90);
+  state.activeTask = 'task1'; emit(); await delay(90);
+  assert.equal(await js(`document.querySelector('[title="Delete task"]').disabled`), true);
+  state.activeTask = null; emit(); await delay(90);
+  await js(`document.querySelector('[title="Delete task"]').click()`); await delay(90);
+  assert.match(await js('document.querySelector("dialog").textContent'), /project files are kept/);
+  await click('Keep work'); assert.equal(calls.filter(c=>c.method==='deleteTask').length, 0);
+  await js(`document.querySelector('[title="Delete task"]').click()`); await delay(90); await click('Delete task');
+  assert.equal(state.tasks.length, 0); assert.equal(state.workspace.selected, 'new:task');
+  await js(`document.querySelector('[aria-label="Delete New conversation"]').click()`); await delay(90); await click('Delete conversation');
+  assert.equal(state.conversations.some(c=>c.id==='created'), false);
   assert.equal(remote.length, 0); assert.deepEqual(errors, []);
   await fs.writeFile(path.join(out,'report.json'), JSON.stringify({ scenarios:report, checks:['draft navigation and failed-send recovery','unlimited and 8192 preferences','continuation','review stays explicit','responsive review dialog','theme contrast and overflow','no remote renderer requests'], errors, passed:true },null,2));
   console.log('PASS: Focus renderer interactions and 12 connection/theme scenarios. Screenshots: ' + out);

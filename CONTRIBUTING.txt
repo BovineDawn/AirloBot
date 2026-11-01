@@ -9,6 +9,7 @@ validation and any migration impact. Avoid force pushes to shared branches.
 Local checks (Node 22.23.4 used here)
   npm ci
   npm test
+  npm run privacy:check
   npm run build
   git diff --check
 On a clean Windows installation, run npx install-electron before npm start.
@@ -55,3 +56,9 @@ files under ignored test-results; do not run it against user projects.
 v0.4.0: Focus workspace, saved drafts, longer replies and three accessible themes.
 Run the manual renderer and local response checks described in
 docs/FOCUS_RELEASE_NOTES.txt. They do not run in public CI.
+
+v0.5.0: Configurable task turns/time, recent-task deletion, Ask mode context, and
+repository privacy checks. Enable the versioned pre-push hook in every clone:
+  git config core.hooksPath .githooks
+See docs/TASK_CONTROLS_AND_PRIVACY.txt for semantics and test coverage. Never
+force-add saved conversations or bypass a privacy failure to publish.

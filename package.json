@@ -1,7 +1,7 @@
 {
   "name": "airlobot",
   "productName": "AirloBot",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "A local-only desktop assistant and GGUF model library.",
   "type": "module",
@@ -11,8 +11,9 @@
     "start": "electron .",
     "test": "node --test test/*.test.mjs",
     "test:live": "node scripts/live-test.mjs",
-    "package": "npm run build && electron-packager . AirloBot --platform=win32 --arch=x64 --out=release --icon=assets/airlobot.ico --ignore=^/release --ignore=^/data --ignore=^/test --ignore=^/scripts --ignore=^/src --ignore=^/test-results --ignore=^/docs --ignore=^/.github",
-    "test:agents": "node scripts/agent-live-test.mjs"
+    "package": "npm run build && electron-packager . AirloBot --platform=win32 --arch=x64 --out=release --icon=assets/airlobot.ico --ignore=^/release --ignore=^/data --ignore=^/test --ignore=^/scripts --ignore=^/src --ignore=^/test-results --ignore=^/docs --ignore=^/.github --ignore=^/.githooks",
+    "test:agents": "node scripts/agent-live-test.mjs",
+    "privacy:check": "node scripts/privacy-check.mjs"
   },
   "dependencies": {
     "react": "19.3.1",

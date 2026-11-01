@@ -40,7 +40,7 @@ if (primaryInstance) app.whenReady().then(async () => {
       if (result.canceled) return null;
       return service.selectProject(result.filePaths[0]);
     },
-    startTask: arg => service.startTask(arg), stopTask: arg => service.stopTask(arg), reviewChange: arg => service.reviewChange(arg),
+    startTask: arg => service.startTask(arg), stopTask: arg => service.stopTask(arg), deleteTask: arg => service.deleteTask(arg), reviewChange: arg => service.reviewChange(arg),
     importModel: async () => {
       const result = await dialog.showOpenDialog(win, { title: 'Add a local GGUF model', properties: ['openFile'], filters: [{ name: 'GGUF models', extensions: ['gguf'] }] });
       if (result.canceled) return null;

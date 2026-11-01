@@ -1,4 +1,4 @@
-AIRLOBOT 0.4
+AIRLOBOT 0.5
 An independent local desktop assistant, built from the architectural research
 in the parent grokbotclone folder. No original Grok Bot application code/assets
 or production services are used by this implementation.
@@ -60,14 +60,20 @@ or Reject. Nothing is written by a model tool itself. AirloBot checks that the
 file has not changed since the proposal. Existing files must be read completely
 before replacement; large-file patch editing is a future feature.
 
+Use the trash control beside any recent task or conversation to delete it after
+confirmation. This removes its local record and draft, not project files. The
+project folder picker is hidden in Ask mode. See docs/TASK_CONTROLS_AND_PRIVACY.txt.
+
 Stop cancels parent and helper inference. Tasks are saved locally. After an app
 restart, unfinished work is marked interrupted; Use this goal starts a fresh
 attempt. Unknown write outcomes are marked uncertain for manual inspection;
 side effects are not replayed automatically. Project switching is blocked during
 work, and historical proposals require selecting their original project again.
 
-Current limits: 20 total model/tool steps, 10 minutes per task, 10 primary model
-turns, 6 helper turns, 5 file proposals. Reads: UTF-8, 64 KiB maximum per file,
+New tasks default to 100 shared model turns and 60 minutes. Settings > Project
+tasks offers Unlimited turns and No time limit; these are separate controls.
+Tool actions do not consume extra model turns. Stop and explicit file review
+remain available. Up to 2 helpers and 5 proposals are supported per task. Reads: UTF-8, 64 KiB maximum per file,
 120 lines/6000 output characters per call. Existing replacement files must be
 small (6000 characters); proposed content is limited to 12000 characters.
 Discovery covers at most 200 entries and four directory levels; use a narrower
@@ -148,10 +154,13 @@ when updating the application if you want to retain your conversations.
 
 VALIDATION
 
-npm test: 23 passing tests covering local-only request routing, Hub redirects,
+npm test: 32 passing tests covering local-only request routing, Hub redirects,
 path confinement, split UTF-8 streaming, offline mode, persistence, cancellation,
 duplicate sends, resumed downloads, rejection of corrupted model data, saved
-drafts, response limits, settings migration, and recent-turn context.
+drafts, response limits, settings migration, recent-turn context, task budgets,
+deleting work without file changes, and repository privacy safeguards.
+Run npm run privacy:check before publishing; the pre-push hook and CI also check
+for recognized private-data paths and credentials.
 
 The Focus renderer harness and real Unlimited response test are documented in
 docs/FOCUS_RELEASE_NOTES.txt, including the 2,482-token local Gemma result.

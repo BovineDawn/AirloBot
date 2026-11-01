@@ -1,0 +1,13 @@
+#!/bin/sh
+# A guard against accidental publishing; hooks remain local and can be bypassed.
+if command -v node >/dev/null 2>&1; then
+  exec node scripts/privacy-check.mjs --history
+fi
+# Optional portable Node distribution used by the Windows development workspace.
+for runtime in ../../.tools/node-*-win-x64/node.exe; do
+  if [ -x "$runtime" ]; then
+    exec "$runtime" scripts/privacy-check.mjs --history
+  fi
+done
+printf '%s\n' 'Privacy check requires Node.js. Add Node to PATH and retry the push.' >&2
+exit 1

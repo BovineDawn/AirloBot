@@ -5,6 +5,7 @@ import path from 'node:path';
 import { ProjectFiles, projectPath } from '../electron/project.mjs';
 import { AirloService } from '../electron/core.mjs';
 import { AgentRunner, makeTask } from '../electron/agents.mjs';
+import { TaskLimitError } from '../electron/task-budget.mjs';
 
 async function fixture(t, options = {}) {
   const parent = path.resolve('test-results/agents-unit'); await fs.mkdir(parent, { recursive: true });
@@ -105,10 +106,88 @@ test('restart marks unfinished work and uncertain writes without replaying actio
   assert.equal(restarted.activeTask, null);
 });
 
-test('a looping model stops at the host budget', async t => {
-  const { files } = await fixture(t), task = makeTask('loop', { path: files.root }, 'local');
-  const runner = new AgentRunner(task, { request: async () => call('read_file', { path: 'sum.js' }), changed: async () => {}, signal: new AbortController().signal, maxSteps: 4 });
-  await runner.run(); assert.equal(task.status, 'failed'); assert.equal(task.steps, 4); assert.match(task.error, /step limit/);
+test('configured budget counts model turns, not tools, and preserves pending work', async t => {
+  const { files } = await fixture(t), task = makeTask('loop', { path: files.root }, 'local', { maxTurns: 4, maxMinutes: 60 });
+  const runner = new AgentRunner(task, { request: async () => call('read_file', { path: 'sum.js' }), changed: async () => {}, signal: new AbortController().signal });
+  await runner.run(); assert.equal(task.status, 'limited'); assert.equal(task.turns, 4); assert.equal(task.steps, 8); assert.match(task.error, /4-turn budget/);
+});
+
+test('main agent and helper can both exceed former turn caps under a shared larger budget', async t => {
+  let primary = 0, helper = 0;
+  const { service, project } = await fixture(t, { agentRequest: async body => {
+    assert.equal(body.max_tokens, 4096);
+    if (body.messages[0].content.includes('local project reviewer')) {
+      helper++; return helper <= 12 ? call('read_file', { path: 'long.txt', start_line: helper, max_lines: 1 }) : answer('Helper finished all 12 reads.');
+    }
+    primary++;
+    if (primary === 1) return call('spawn_agent', { role: 'reviewer', task: 'Read the first twelve lines' });
+    return primary <= 13 ? call('read_file', { path: 'long.txt', start_line: primary, max_lines: 1 }) : answer('Primary finished.');
+  } });
+  await fs.writeFile(path.join(project, 'long.txt'), Array.from({ length: 30 }, (_, i) => 'Line ' + i).join('\n'));
+  await service.startTask({ goal: 'A longer investigation' }); await service.agentPromise;
+  const task = service.state.tasks[0]; assert.equal(task.status, 'completed'); assert.equal(task.turns, 27); assert.ok(task.steps > 20);
+  assert.equal(primary, 14); assert.equal(helper, 13); assert.equal(task.budget.maxTurns, 100);
+});
+
+test('unlimited tasks exceed 100 turns and still cancel; repeated unchanged exchanges stop', async t => {
+  const { files, project } = await fixture(t);
+  await fs.writeFile(path.join(project, 'long.txt'), Array.from({ length: 180 }, (_, i) => 'Line ' + i).join('\n'));
+  const task = makeTask('long work', { path: files.root }, 'local', { maxTurns: -1, maxMinutes: -1 });
+  const controller = new AbortController(); let count = 0;
+  const runner = new AgentRunner(task, { changed: async () => {}, signal: controller.signal, request: async () => {
+    count++; if (count === 150) controller.abort();
+    return call('read_file', { path: 'long.txt', start_line: count, max_lines: 1 });
+  } });
+  await runner.run(); assert.equal(task.turns, 150); assert.equal(task.status, 'cancelled');
+  const loop = makeTask('loop', { path: files.root }, 'local', { maxTurns: -1, maxMinutes: -1 });
+  await new AgentRunner(loop, { changed: async () => {}, signal: new AbortController().signal, request: async () => call('read_file', { path: 'sum.js' }) }).run();
+  assert.equal(loop.status, 'failed'); assert.equal(loop.turns, 6); assert.match(loop.error, /identical tool exchanges/);
+});
+
+test('helper budget exhaustion propagates to the task, and activity storage stays bounded', async t => {
+  const { files } = await fixture(t), task = makeTask('helper budget', { path: files.root }, 'local', { maxTurns: 2, maxMinutes: 60 });
+  let count = 0;
+  const runner = new AgentRunner(task, { changed: async () => {}, signal: new AbortController().signal, request: async () => !count++ ? call('spawn_agent', { role: 'reviewer', task: 'Inspect' }) : call('read_file', { path: 'sum.js' }) });
+  await runner.run(); assert.equal(task.status, 'limited'); assert.equal(task.turns, 2);
+  for (let n = 0; n < 600; n++) await runner.event(task.agents[0], 'test', n);
+  assert.equal(task.events.length, 500); assert.ok(task.eventsOmitted > 0);
+});
+
+test('task settings validate atomically, persist, and snapshot into each new task', async t => {
+  const { service } = await fixture(t, { agentRequest: async () => answer('Complete') });
+  await service.settings({ taskMaxTurns: -1, taskMaxMinutes: -1 });
+  for (const patch of [{ taskMaxTurns: 0 }, { taskMaxTurns: 1001 }, { taskMaxTurns: '100' }, { taskMaxTurns: 50, taskMaxMinutes: 0 }, { taskMaxMinutes: 1441 }]) {
+    await assert.rejects(service.settings(patch)); assert.equal(service.state.settings.taskMaxTurns, -1); assert.equal(service.state.settings.taskMaxMinutes, -1);
+  }
+  const restored = new AirloService(service.dataDir); await restored.init();
+  assert.equal(restored.state.settings.taskMaxTurns, -1); assert.equal(restored.state.settings.taskMaxMinutes, -1);
+  await service.startTask({ goal: 'Run without a configured time or turn cap' }); await service.agentPromise;
+  assert.deepEqual(service.state.tasks[0].budget, { maxTurns: -1, maxMinutes: -1 });
+});
+
+test('deadline cancellation records the time limit without pretending the user pressed Stop', async t => {
+  const { files } = await fixture(t), task = makeTask('deadline', { path: files.root }, 'local');
+  const controller = new AbortController();
+  const runner = new AgentRunner(task, { changed: async () => {}, signal: controller.signal, request: async () => {
+    controller.abort(new TaskLimitError('Task reached its 60-minute time limit.')); return answer('Too late');
+  } });
+  await runner.run(); assert.equal(task.status, 'limited'); assert.match(task.error, /60-minute time limit/);
+});
+
+test('deleting recent tasks removes local history/drafts but never project files', async t => {
+  const { service, files, project } = await fixture(t);
+  const task = makeTask('create', service.state.project, service.state.settings.model); task.status = 'completed';
+  const applied = await files.prepare('kept.txt', 'Keep this file', 'Create', new Map()); await files.apply(applied); applied.status = 'applied';
+  const pending = await files.prepare('unwritten.txt', 'Do not write', 'Create', new Map());
+  task.proposals.push(applied, pending); service.state.tasks.push(task);
+  await service.workspace({ selected: 'task:' + task.id, draft: { key: 'task:' + task.id, text: 'Draft' } });
+  service.activeTask = { id: task.id, controller: new AbortController() }; await assert.rejects(service.deleteTask(task.id), /Stop/); service.activeTask = null;
+  service.reviewing = true; await assert.rejects(service.deleteTask(task.id), /review/); service.reviewing = false;
+  await service.deleteTask(task.id);
+  assert.equal(service.state.tasks.length, 0); assert.equal(service.state.workspace.selected, 'new:task'); assert.deepEqual(service.state.workspace.drafts, {});
+  assert.equal(await fs.readFile(path.join(project, 'kept.txt'), 'utf8'), 'Keep this file'); await assert.rejects(fs.stat(path.join(project, 'unwritten.txt')), { code: 'ENOENT' });
+  const restored = new AirloService(service.dataDir); await restored.init(); assert.equal(restored.state.tasks.length, 0);
+  await assert.rejects(service.deleteTask(task.id), /not found/);
 });
 
 test('rejected proposals remain unwritten and cannot be applied from another project', async t => {
