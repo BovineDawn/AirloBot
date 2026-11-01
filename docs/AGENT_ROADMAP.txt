@@ -1,0 +1,121 @@
+AIRLOBOT: FROM LOCAL CHAT TO LOCAL WORK
+Research and implementation plan | 2026-11-01 | Proposed, not shipped
+Repository: https://github.com/BovineDawn/AirloBot
+
+PRODUCT DIRECTION
+One primary AirloBot receives a goal, creates focused helpers when useful,
+tracks their work, and returns a useful result with evidence. The main screen
+should become a task workspace: plan, activity, files/diffs, approvals, and
+results. Conversation remains the way to direct work, but completed artifacts
+and actions are the product.
+
+Grok Bot documents a primary Bot coordinating other named Bots, each with its
+own ongoing context and job. We can adopt that interaction pattern with our own
+implementation. Its cloud backend is not available in the extracted desktop
+client. AirloBot uses local inference and must supply its own orchestration.
+Source: https://docs.x.ai/grok-bot/bots
+
+LOCAL DOES NOT MEAN ONE SESSION
+A helper is a separate instruction/context/task record, not another copy of the
+model. Initially every agent uses the same already-loaded Gemma GGUF through
+127.0.0.1:1234. A scheduler queues inference; independent filesystem or process
+work may overlap. Start with one generation at a time and benchmark before
+raising concurrency. Separate contexts do not provide process isolation.
+
+User -> Primary AirloBot -> Task scheduler -> Local LM Studio model
+                          |-> Research helper -> narrow tools -> evidence
+                          |-> Builder helper  -> patch artifact
+                          |-> Reviewer helper -> findings/test results
+                          |-> Approval queue -> authorized execution
+                          `-> Durable local task/event/artifact storage
+
+A persistent agent profile owns a recurring role. An ephemeral helper owns one
+bounded subtask. Both are records managed by the host. The model proposes a
+spawn_agent call; the host validates its scope, budget, depth and tool rights.
+There is no model download or new model process for each helper.
+
+ORDERED IMPLEMENTATION BACKLOG
+
+1. Prove tool calling with installed models.
+   Add a repeatable offline evaluation: correctly formed calls, malformed JSON,
+   missing arguments, tool errors, denial, cancellation and stopping. Test the
+   current Gemma first, then other already installed models. Native tool support
+   depends on the model/template/runtime; ordinary chat success is insufficient.
+   Store model/runtime/quantization and measured results. Do not enable agent
+   actions merely because a publisher labels a model as agentic.
+   Done: reproducible fixture results and a selected local tool-calling model.
+   Source: https://lmstudio.ai/docs/developer/openai-compat/tools
+
+2. Build a bounded tool loop and host permission checks together.
+   First tools: list_files, read_file, search_text in a user-selected workspace.
+   Parse tool calls as typed data; validate against schemas and enforce limits
+   in application code. Reject path escapes, symlinks/junctions outside the root,
+   oversized output, unknown tools and unexpected arguments. Never execute raw
+   model text. Distinguish user instructions from untrusted document contents.
+   Add proposed patches and explicit action previews before filesystem writes.
+   Done: one local goal produces a grounded answer/artifact with an activity log;
+   denied/malformed calls perform no action and appear clearly in the log.
+
+3. Persist jobs and make the interface about work.
+   Proposed SQLite records: agents, tasks, runs, tool_calls, approvals, events,
+   artifacts and memory entries. Migrate existing chat/history without loss.
+   States: queued, running, waiting_for_approval, waiting_for_helper, completed,
+   failed, cancelled. Show a task board, progress, tool details and result files.
+   Provide stop, retry and reviewed resume after restart. Never silently replay
+   a side effect whose completion is unknown after a crash; reconcile first.
+   Done: interruption/restart retains accurate state and does not duplicate work.
+
+4. Add primary-agent delegation.
+   Host APIs: spawn_agent, message_agent, wait_agent, cancel_agent. Each helper
+   receives a goal, selected evidence, permitted tools and budget, then returns
+   a structured result with artifact references. Give the user one owner for the
+   outcome. Suggested starting limits: two helpers, depth one, twenty tool steps
+   and ten minutes per task; tune after measurements. Release the inference slot
+   while waiting for a child, preventing parent/child scheduling deadlocks.
+   Child permissions are a subset of the parent; denial cannot be delegated away.
+   Done: primary creates a reviewer, receives findings, and incorporates them
+   without duplicate edits, lost messages or an unbounded spawn loop.
+
+5. Make project changes reviewable and verifiable.
+   Add apply_patch and an allowlisted test runner with structured arguments,
+   timeouts, bounded output and process-tree cancellation. Show exact diffs and
+   commands for approval. Use a separate Git worktree for each writing task;
+   helpers return commits/patches, and only the coordinator integrates them.
+   Read-only reviewers need no independent checkout. Tests carry more weight
+   than a second model agreeing. Resolve overlapping changes explicitly.
+   Done: a small bug fix, reviewer report, passing tests and an approved diff.
+
+6. Add useful memory and context management.
+   Keep project notes and accepted preferences separate from source excerpts.
+   Track provenance. Use compact task briefs, token-aware context limits and
+   optional local embeddings; do not duplicate entire chat histories per helper.
+   Done: a follow-up task recalls an approved convention and cites its source.
+
+7. Add local integrations and reusable skills.
+   Start with local filesystem/Git tools, then vetted local MCP stdio servers.
+   MCP supplies a tool/context interface, not the scheduler or permission model.
+   A local server can still call the internet: distinguish local inference from
+   tool network permissions and extend offline mode before adding connectors.
+   Add browser/computer automation after direct tools, with one exclusive UI
+   control lease so agents cannot fight over the keyboard or mouse.
+   Source: https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture
+
+8. Automate proven workflows.
+   Save successful task recipes as skills, then add schedules and a local worker.
+   Define missed-run, retry, notification and approval rules. Work runs only while
+   this computer is awake and its worker/runtime is running; cloud-style work
+   while the PC is off would contradict this local-only product direction.
+   Source: https://docs.x.ai/grok-bot/skills-routines-and-automations
+
+FIRST END-TO-END MILESTONE (proposed v0.3)
+"Inspect this project, find one small bug, propose a fix, ask a reviewer to check
+it, run the allowed tests, and show me the result and diff."
+Start with a deliberately small fixture repository and real local inference.
+Approval denial, cancellation, malformed tool output, restart and a helper
+failure must be demonstrated alongside the happy path.
+
+CURRENT BOUNDARY
+v0.2 delivers AirloBot branding, a robot mark and Graphite/Midnight/Liquid Glass
+appearance with local chat and a model library. It does not yet create agents,
+execute project tools, manage jobs, browse for the model or run automations.
+All items above are implementation proposals, not claims about shipped behavior.
