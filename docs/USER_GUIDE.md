@@ -1,6 +1,6 @@
 # AirloBot user guide
 
-AirloBot 0.8.1 is a standalone Windows desktop preview. See the [README](../README.md#get-started) for installation.
+AirloBot 0.8.2 is a standalone Windows desktop preview. See the [README](../README.md#get-started) for installation.
 
 ## Local engine and models
 
@@ -57,6 +57,8 @@ The conversation follows new text while you are at the bottom. Scroll up to paus
 Try: “Read README.md, create a docs folder, and write a summary in docs/overview.md.”
 
 Open **Review changes**, inspect paths and before/after text, then choose **Apply change** or **Reject**. Apply folder proposals before dependent files. Approvals target the conversation's original folder even if the picker has since changed. Model tools never apply writes themselves.
+
+If the agent is still working, the review panel explains why approval is locked. **Stop and review** stops generation, keeps all prepared proposals, and unlocks Apply when cancellation finishes. It does not apply anything. Repeating a pending proposal or looping over unchanged files now pauses the agent for review automatically. The original proposal stays intact. A regular Ask chat does not block approval.
 
 The agent can prepare folders and files in one turn; preparing files does not require applying their folder first. Pending folders also remain available for proposals in follow-ups. For recognized creation requests, folder-only results or code pasted into chat trigger up to two recovery requests. If the model still does not prepare the requested artifact, the task reports **Needs attention** with **Continue saved work**. This catches missing proposals, not every defect in generated code; inspect and test code after review.
 

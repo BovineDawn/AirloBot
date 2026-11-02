@@ -101,6 +101,8 @@ small,.small { font-size:12px; }
 .work-column { display:flex; flex-direction:column; min-width:0; min-height:0; flex:1; }
 .transcript-scroll { min-height:0; flex:1; overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; scroll-padding-bottom:20px; }
 .jump-latest { align-self:center; margin:6px 0 0; font-size:12px; }
+.review-lock { margin-bottom:18px; }
+.review-lock p { margin:0 0 10px; }
 .welcome { max-width:660px; margin:clamp(32px,8vh,105px) auto 34px; text-align:center; padding:24px; }
 .welcome .robot { margin-bottom:20px; }
 .welcome p { margin:15px auto 25px; color:var(--muted); }

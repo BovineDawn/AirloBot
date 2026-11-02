@@ -339,7 +339,15 @@ export class AirloService {
   async projectRead({ taskId, path: filename, startChar = 0 }) {
     return (await ProjectFiles.open(this.projectFor(taskId).path)).read(filename, 1, 200, startChar);
   }
-  stopTask(id) { if (id !== this.activeTask?.id) throw new Error('That task is not running.'); this.activeTask.controller.abort(); }
+  async stopTask(id) {
+    if (!this.activeTask && this.state.tasks.some(t => t.id === id && t.status !== 'running')) return this.snapshot();
+    if (id !== this.activeTask?.id) throw new Error('That task is not running.');
+    const finished = this.agentPromise;
+    this.activeTask.controller.abort();
+    // Do not report Stop as complete until generation has released the review lock.
+    await finished;
+    return this.snapshot();
+  }
   async deleteTask(id) {
     if (typeof id !== 'string' || !this.state.tasks.some(t => t.id === id)) throw new Error('Task not found.');
     if (this.activeTask?.id === id || this.reviewing) throw new Error('Stop this task and finish the file review before deleting it.');

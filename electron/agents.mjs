@@ -31,6 +31,7 @@ export function validateCall(call, allowed) {
   return { name: spec.name, args };
 }
 const stamp = () => new Date().toISOString();
+class ReviewPause extends Error {}
 export function makeTask(goal, project, model, budget = DEFAULT_TASK_BUDGET) {
   return { id: randomUUID(), runId: randomUUID(), title: goal, runs: [], goal, project: { ...project }, model, budget: { ...budget }, turns: 0, status: 'running', createdAt: stamp(), updatedAt: stamp(), steps: 0, agents: [], events: [], proposals: [], filesRead: {}, searched: false, result: '', error: null };
 }
@@ -58,9 +59,16 @@ export class AgentRunner {
       this.task.status = this.task.completionIssue || Object.keys(this.task.unresolvedErrors || {}).length ? 'needs_attention' : pendingChanges(this.task).length ? 'awaiting_review' : Object.keys(this.task.filesRead || {}).length || this.task.searched ? 'completed' : 'needs_input';
     } catch (error) {
       const reason = this.signal.aborted ? this.signal.reason : error;
-      this.task.status = reason instanceof TaskLimitError ? 'limited' : this.signal.aborted ? 'cancelled' : 'failed';
-      this.task.error = this.signal.aborted && !(reason instanceof TaskLimitError) ? 'Task stopped. No proposed changes were applied automatically.' : String(reason.message).slice(0, 1000);
-      for (const agent of this.task.agents) if (['running', 'waiting'].includes(agent.status)) { agent.status = this.task.status; agent.error = this.task.error; }
+      if (reason instanceof ReviewPause) {
+        this.task.status = 'awaiting_review'; this.task.reviewPaused = true;
+        this.task.result = `${reason.message} The original proposals were kept. Open Review changes to apply or reject them, then continue if more work is needed. Nothing was written automatically.`;
+        for (const agent of this.task.agents) if (['running', 'waiting'].includes(agent.status)) { agent.status = 'awaiting_review'; agent.result = this.task.result; }
+        await this.event(this.task.agents[0], 'review_ready', reason.message);
+      } else {
+        this.task.status = reason instanceof TaskLimitError ? 'limited' : this.signal.aborted ? 'cancelled' : 'failed';
+        this.task.error = this.signal.aborted && !(reason instanceof TaskLimitError) ? 'Task stopped. No proposed changes were applied automatically.' : String(reason.message).slice(0, 1000);
+        for (const agent of this.task.agents) if (['running', 'waiting'].includes(agent.status)) { agent.status = this.task.status; agent.error = this.task.error; }
+      }
     } finally { this.task.updatedAt = stamp(); await this.changed(); }
   }
   async agent(agent) {
@@ -151,7 +159,11 @@ export class AgentRunner {
           operationKey = `${name}:${args.path || args.directory || '.'}`;
           this.task.currentAction = { tool: name, path: args.path || args.directory || '.', agent: agent.name };
           await this.event(agent, 'tool', `${name} ${JSON.stringify(name.startsWith('propose_') ? { path: args.path, reason: args.reason } : args)}`);
-          if (name === 'list_files') result = await this.files.list(args.directory, this.signal, args.cursor);
+          if (name === 'list_files') {
+            result = await this.files.list(args.directory, this.signal, args.cursor);
+            result.pending_changes = pendingChanges(this.task).filter(p => (p.path.includes('/') ? p.path.slice(0, p.path.lastIndexOf('/')) : '.') === result.directory).map(p => ({ path: p.path, operation: p.operation, status: 'pending_user_review', applied: false }));
+            if (result.pending_changes.length) result.note += ' Pending changes are already prepared; they are separate from files on disk. Do not propose them again.';
+          }
           if (name === 'read_file') {
             try {
               result = await this.files.read(args.path, args.start_line, args.max_lines, args.start_char); rememberRead(reads, result); this.task.filesRead ||= {}; this.task.filesRead[result.path] = { hash: result.hash, startLine: result.startLine, totalLines: result.totalLines }; result.content = result.raw; delete result.raw;
@@ -163,9 +175,9 @@ export class AgentRunner {
           }
           if (name === 'search_text') { result = await this.files.search(args.query, args.directory, this.signal, args.cursor); this.task.searched = true; }
           if (name.startsWith('propose_')) {
-            if (this.task.proposals.length >= 20) throw new Error('Review the current 20 proposals before making more changes.');
+            if (this.task.proposals.length >= 20) throw new ReviewPause('Preparation paused after 20 proposals to let you review the current changes.');
             const pending = pendingChanges(this.task);
-            if (pending.some(p => p.path === args.path.replaceAll('\\', '/'))) throw new Error('This path already has a pending proposal. Prepare the other requested files, then finish review.');
+            if (pending.some(p => p.path === args.path.replaceAll('\\', '/'))) throw new ReviewPause('Preparation paused because the agent tried to propose a path that is already awaiting review.');
             const proposal = name === 'propose_directory' ? await this.files.prepareDirectory(args.path, args.reason) : name === 'propose_edit' ? await this.files.prepareEdit(args.path, args.old_text, args.new_text, args.reason, reads) : await this.files.prepare(args.path, args.content, args.reason, reads, pending);
             this.task.proposals.push(proposal);
             result = { proposalId: proposal.id, path: proposal.path, status: 'pending_user_review', applied: false, next: 'Continue preparing any remaining requested files now, including files inside pending folders. When all files are prepared, ask the user to open Review changes. Only the review UI can apply them.' };
@@ -188,7 +200,7 @@ export class AgentRunner {
           }
           await this.event(agent, 'result', JSON.stringify(result));
         } catch (error) {
-          this.signal.throwIfAborted(); if (error instanceof TaskLimitError) throw error; result = { error: String(error.message).slice(0, 600) };
+          this.signal.throwIfAborted(); if (error instanceof TaskLimitError || error instanceof ReviewPause) throw error; result = { error: String(error.message).slice(0, 600) };
           if (primary) { this.task.unresolvedErrors ||= {}; this.task.unresolvedErrors[operationKey] = result.error; }
           await this.event(agent, 'tool_error', result.error);
         }
@@ -198,7 +210,10 @@ export class AgentRunner {
       }
       const signature = JSON.stringify(exchange);
       repeatedExchanges = signature === previousExchange ? repeatedExchanges + 1 : 1; previousExchange = signature;
-      if (repeatedExchanges >= 6) throw new Error('Stopped after six identical tool exchanges with unchanged results. Refine the goal or try a different local model.');
+      if (repeatedExchanges >= 6) {
+        if (primary && pendingChanges(this.task).length) throw new ReviewPause('Preparation paused because the agent was repeating unchanged actions with changes already awaiting review.');
+        throw new Error('Stopped after six identical tool exchanges with unchanged results. Refine the goal or try a different local model.');
+      }
     }
   }
 }

@@ -113,3 +113,10 @@ needed agent follow-ups to fix a Tkinter startup error; the repaired program pas
 button-driven arithmetic, decimal, precedence, clear, zero-division, grid overlap,
 and AST-call rejection checks. Generated-code correctness is still model-dependent.
 The packaged ASAR was checked against source and audited for excluded runtime data.
+
+v0.8.2: Explain review locks and offer Stop and review; stopping waits until the
+agent releases the file-review lock. Duplicate proposals and unchanged read loops
+with pending changes yield to review without replacing drafts or writing files.
+Directory tool results identify pending changes separately from actual disk files.
+Regression coverage includes delayed cancellation followed by approval, duplicate
+draft preservation, repeated reads, and approval while a read-only chat is active.

@@ -7,7 +7,7 @@
 <p align="center"><strong>An agent workspace powered by your local models.</strong></p>
 
 <p align="center">
-  Windows desktop · Local inference · Version 0.8.1 preview
+  Windows desktop · Local inference · Version 0.8.2 preview
 </p>
 
 <p align="center">

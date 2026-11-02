@@ -1,7 +1,7 @@
 {
   "name": "airlobot",
   "productName": "AirloBot",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "private": true,
   "description": "A standalone, private local assistant with project conversations and reviewed file tools.",
   "type": "module",
