@@ -7,7 +7,7 @@
 <p align="center"><strong>An agent workspace powered by your local models.</strong></p>
 
 <p align="center">
-  Windows desktop · Local inference · Version 0.6 preview
+  Windows desktop · Local inference · Version 0.8.2 preview
 </p>
 
 <p align="center">
@@ -33,7 +33,8 @@ AirloBot brings local chat, project tools, and helper agents into one desktop wo
 - **Delegate locally.** The main agent can create researcher or reviewer helpers using the same installed model, with separate contexts and read-only tools.
 - **Make reviewed changes.** Create folders and text documents, edit a precise passage, and apply, reject, or undo changes with protection against overwriting newer work.
 - **Build a model library.** Add a local GGUF or browse public Hugging Face repositories, with download progress, pause/resume, and SHA-256 verification.
-- **Keep your place.** Saved drafts, searchable recent work, and confirmed task/chat deletion keep the workspace manageable.
+- **Check memory fit privately.** Opt in to a local hardware snapshot, compare a selected model at your context setting, and choose from a few clear download variants. Hardware details stay in memory on your device.
+- **Keep your place.** Responses follow new text automatically. Scroll up to read earlier messages, then use Jump to latest to resume. Drafts and recent work stay saved locally.
 - **Choose your finish.** Light, Dark, and macOS-inspired Liquid Glass include motion and transparency controls.
 
 ## Get started
@@ -87,13 +88,47 @@ Need more room? **Settings → Project tasks** offers **Unlimited turns** and **
 
 Task results stay in the main workspace. Open **Review changes** to see the changed lines, expand the full before/after text, and choose **Apply change** or **Reject**. Nothing is applied by a model tool itself. Applied changes offer Undo; newer edits are preserved if a conflict is detected.
 
+For build requests, the agent can prepare a folder and its source files together. Follow-ups such as “proceed” retain the build objective. AirloBot retries missing file proposals and reports incomplete work if the model only provides instructions; code pasted into chat is never treated as a saved file.
+
 ![Dark theme with a proposed file change, readable diff, and explicit Apply and Reject controls](docs/media/review-dark.png)
+
+If the agent is still working, **Stop and review** keeps the prepared changes and unlocks approval once generation stops. Duplicate-proposal loops also return control for review automatically.
+
+<details>
+<summary><strong>See review and conversation controls</strong></summary>
+
+![Review panel explaining why approval is locked, with Stop and review available](docs/media/review-in-progress.png)
+
+Chats follow new text automatically. Scroll up to read earlier messages without being pulled away, then choose **Jump to latest** to resume following.
+
+![A sample conversation with Jump to latest available while reading earlier text](docs/media/chat-follow-scroll.png)
+
+</details>
 
 ### Bring your own local models
 
 Add an existing GGUF or find a public model on Hugging Face. AirloBot loads files directly and verifies downloads before adding them to the library. The library currently supports public, ungated, single-file GGUF models.
 
+Enable **Settings → Models & hardware → Use my hardware for model recommendations**, then choose **Scan now**. The library shows a few starting variants and keeps **All versions** available. Selecting a variant reads a bounded metadata preview before download. Fit labels are memory estimates, not speed or model-quality guarantees; incomplete metadata and unmodeled architectures receive limited, clearly labeled weight-only guidance.
+
+Snapshots expire for comparisons after 15 minutes, are never saved to disk or sent to Hugging Face, and clear on **Forget results**, opt-out, or app shutdown. Existing GGUFs retain their locations. Older library entries offer **Check model requirements** to read their metadata locally.
+
+Search results show monthly repository downloads, community likes, the repository update date, and the range of supported single-file download sizes. Use **Compare memory fit** to check starting versions on the current page. The version chooser suggests a checked option with comfortable memory headroom when available. Popularity is not a speed or quality score.
+
+![Search results with popularity, file sizes, update dates, and checked memory fit using synthetic data](docs/media/library-search.png)
+
+![Model download choices with a local memory-fit estimate, using synthetic model and hardware data](docs/media/library-downloads.png)
+
 ![Light theme showing the local model library and model selection controls](docs/media/library-light.png)
+
+<details>
+<summary><strong>See model and hardware settings</strong></summary>
+
+Settings uses category panels, keeping engine controls and optional hardware guidance together in **Models & hardware**.
+
+![Models and hardware settings in Liquid Glass with local engine controls and optional hardware guidance](docs/media/settings-models.png)
+
+</details>
 
 <details>
 <summary><strong>Preview the appearance options</strong></summary>
@@ -116,7 +151,7 @@ The bundled engine has remote access, built-in agent tools, request logging, and
 
 ## Current scope
 
-AirloBot 0.6 supports local text chat, persistent project conversations, folder creation, and reviewed UTF-8 text/Markdown/source edits up to 1 MiB. Helpers run sequentially, with up to two helpers per turn. New turns default to **100 shared model turns and 60 minutes**, both configurable. Word/PDF editing, terminal commands, project test execution, and autonomous writes are not available.
+AirloBot 0.8.2 supports local text chat, persistent project conversations, folder creation, and reviewed UTF-8 text/Markdown/source edits up to 1 MiB. Helpers run sequentially, with up to two helpers per turn. New turns default to **100 shared model turns and 60 minutes**, both configurable. Word/PDF editing, terminal commands, project test execution, and autonomous writes are not available.
 
 The app is tested on Windows. CI checks the service and production build on Windows and Linux; this does not imply a supported Linux desktop release. See the [user guide](docs/USER_GUIDE.md) for model requirements, exact limits, and troubleshooting.
 

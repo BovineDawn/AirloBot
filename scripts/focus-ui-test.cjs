@@ -16,7 +16,7 @@ const js = async source => { try { return await win.webContents.executeJavaScrip
 async function click(text) { await js(`(()=>{const b=Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()===${JSON.stringify(text)} && b.getBoundingClientRect().width);if(!b)throw Error('Button missing: '+${JSON.stringify(text)});b.click();})()`); await delay(90); }
 async function select(label, value) { await js(`(()=>{const el=document.querySelector('select[aria-label=${JSON.stringify(label)}]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(el,${JSON.stringify(value)});el.dispatchEvent(new Event('change',{bubbles:true}));})()`); await delay(90); }
 async function draft(value) { await js(`(()=>{const el=document.querySelector('#work-prompt');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el,${JSON.stringify(value)});el.dispatchEvent(new Event('input',{bubbles:true}));})()`); await delay(90); }
-async function shot(name) { await js('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))'); await delay(150); await fs.writeFile(path.join(out, name + '.png'), (await win.webContents.capturePage()).toPNG()); }
+async function shot(name) { win.webContents.invalidate(); await js('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))'); await delay(150); await fs.writeFile(path.join(out, name + '.png'), (await win.webContents.capturePage(undefined,{stayHidden:true,stayAwake:true})).toPNG()); }
 function emit() { win.webContents.send('ui-event', { type: 'state', state }); }
 ipcMain.handle('ui-fixture', (_event, method, arg) => {
   calls.push({ method, arg });
@@ -31,6 +31,7 @@ ipcMain.handle('ui-fixture', (_event, method, arg) => {
   if (method === 'deleteConversation') { state.conversations = state.conversations.filter(c => c.id !== arg); delete state.workspace.drafts['chat:' + arg]; emit(); }
   if (method === 'searchModels') return [];
   if (method === 'startTask') { assert.equal(arg.taskId, 'task1'); return 'task1'; }
+  if (method === 'stopTask') return delay(220).then(()=>{ assert.equal(arg,state.activeTask); state.activeTask=null;state.tasks[0].status='cancelled';emit();return state; });
   if (method === 'projectFiles') return { directory: '.', entries: [{ path: 'welcome.txt', type: 'file' }, { path: 'docs', type: 'directory' }], total: 2, excluded: 1, next_cursor: null };
   if (method === 'projectRead') return { path: arg.path, startLine: 1, totalLines: 2, content: '1: Welcome\n2: Open the app', next_start_char: null };
 });
@@ -43,7 +44,7 @@ app.whenReady().then(async () => {
   ], tasks: [{ id: 'task1', goal: 'Review the project and suggest a small improvement', project, updatedAt: '2026-11-01T11:00:00Z', status: 'completed', steps: 6, result: 'I inspected the project with a reviewer helper.\n\nThe welcome message can be clearer. **One file change is ready for your review.**', agents: [{ id: 'primary', name: 'AirloBot', role: 'primary', status: 'completed', goal: 'Review the project' }, { id: 'helper', name: 'Reviewer', role: 'reviewer', status: 'completed', goal: 'Inspect the welcome message', result: 'The title should describe the action.' }], events: [{ id: 'event1', type: 'tool', agent: 'Reviewer', at: '2026-11-01T11:00:00Z', detail: 'read_file {"path":"welcome.txt"}' }], proposals: [{ id: 'proposal1', path: 'welcome.txt', status: 'pending', reason: 'Make the next action clear.', before: 'Welcome\nOpen the app\n', after: 'Welcome\nChoose a project to begin\n' }] }] };
   const model = { key: 'fixture', display_name: 'Gemma 4 E4B', quantization: { name: 'Q4_K_M' }, params_string: '7.5B', loaded_instances: [{}] };
   status = { connected: true, models: [model], loaded: [model] };
-  await fs.writeFile(path.join(out, 'preload.cjs'), `const {contextBridge,ipcRenderer}=require('electron'); const methods=${JSON.stringify(['snapshot','status','settings','workspace','loadModel','newConversation','send','reviewChange','searchModels','deleteTask','deleteConversation','startTask','projectFiles','projectRead'])}; contextBridge.exposeInMainWorld('airlo',Object.assign(Object.fromEntries(methods.map(m=>[m,arg=>ipcRenderer.invoke('ui-fixture',m,arg)])),{subscribe:fn=>{const f=(_e,v)=>fn(v);ipcRenderer.on('ui-event',f);return()=>ipcRenderer.removeListener('ui-event',f);}}));`);
+  await fs.writeFile(path.join(out, 'preload.cjs'), `const {contextBridge,ipcRenderer}=require('electron'); const methods=${JSON.stringify(['snapshot','status','settings','workspace','loadModel','newConversation','send','reviewChange','searchModels','deleteTask','deleteConversation','startTask','stopTask','projectFiles','projectRead'])}; contextBridge.exposeInMainWorld('airlo',Object.assign(Object.fromEntries(methods.map(m=>[m,arg=>ipcRenderer.invoke('ui-fixture',m,arg)])),{subscribe:fn=>{const f=(_e,v)=>fn(v);ipcRenderer.on('ui-event',f);return()=>ipcRenderer.removeListener('ui-event',f);}}));`);
   protocol.handle('airlobot-test', async request => {
     const url = new URL(request.url), base = path.join(root, 'dist');
     const file = path.resolve(base, '.' + decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname));
@@ -65,7 +66,7 @@ app.whenReady().then(async () => {
   await select('Work mode', 'chat'); assert.equal(await js('document.querySelector("#work-prompt").value'), 'An unsent question');
   await click('Settings'); await select('Response token limit', '8192'); await click('Save response preferences'); assert.equal(state.settings.maxTokens, 8192);
   await select('Response token limit', '-1'); await click('Save response preferences'); assert.equal(state.settings.maxTokens, -1);
-  await select('Task turn limit', '-1'); assert.equal(state.settings.taskMaxTurns, -1);
+  await click('Project tasks'); await select('Task turn limit', '-1'); assert.equal(state.settings.taskMaxTurns, -1);
   await select('Task time limit', '-1'); assert.equal(state.settings.taskMaxMinutes, -1);
   await select('Task turn limit', '100'); await select('Task time limit', '60');
   await click('← Workspace'); assert.equal(await js('document.querySelector("#work-prompt").value'), 'An unsent question');
@@ -75,6 +76,30 @@ app.whenReady().then(async () => {
   await js('Array.from(document.querySelectorAll(".history-item")).find(b=>b.title==="Plan the project").click()'); await delay(90);
   assert.equal(await js('Boolean(document.querySelector(".markdown img") || window.fixtureUnsafe)'), false);
   await click('Continue response →'); assert.ok(calls.some(c => c.method === 'send' && c.arg.content.startsWith('Continue your previous response')));
+  // Token events, late layout and user scroll intent all exercise the real UI.
+  const streamed = state.conversations[0].messages[1];
+  streamed.status = 'streaming'; streamed.finishReason = null;
+  const token = async text => { streamed.content += text; win.webContents.send('ui-event',{type:'token',conversationId:'chat1',message:streamed}); await delay(65); };
+  const gap = () => js('(()=>{const n=document.querySelector(".transcript-scroll");return n.scrollHeight-n.scrollTop-n.clientHeight;})()');
+  const atBottom = async label => { for(let n=0;n<60;n++) { if(await gap()<3) return; win.webContents.invalidate();await delay(50); } assert.fail(label); };
+  await token('\n\n' + 'Streaming paragraph with enough text to wrap across the conversation pane.\n\n'.repeat(60));
+  assert.ok(await gap() < 3, 'New streamed content should follow the bottom');
+  for(let i=0;i<8;i++) await token('More streamed output.\n\n'.repeat(8));
+  assert.ok(await gap() < 3, 'Long bursts must not disable following');
+  await js('(()=>{const n=document.querySelector(".transcript-scroll");n.scrollTop=100;n.dispatchEvent(new Event("scroll"));})()'); await delay(90);
+  assert.equal(await js('Boolean(document.querySelector(".jump-latest"))'),true,'Scroll-up should reveal Jump to latest');
+  const readingPosition = await js('document.querySelector(".transcript-scroll").scrollTop');
+  await token('New output while reading history.\n\n'.repeat(15));
+  const afterTokenPosition = await js('document.querySelector(".transcript-scroll").scrollTop');
+  assert.ok(Math.abs(afterTokenPosition - readingPosition) < 2, `Reading earlier messages should stay put: ${readingPosition} -> ${afterTokenPosition}`);
+  await click('Jump to latest'); assert.ok(await gap() < 3);
+  // No token or React state event: expanding reasoning/layout should still follow.
+  await js('document.querySelector(".chat-transcript").style.paddingBottom="550px"'); await delay(100);
+  await atBottom('Late content layout should follow');
+  win.setSize(1100,700); await delay(150); await atBottom('Window resizing should keep the latest text visible');
+  await js('document.querySelector(".chat-transcript").style.paddingBottom=""');
+  win.setSize(1440,900); streamed.content='A short completed reply.'; streamed.status='complete'; emit(); await delay(90);
+  report.push({check:'stream following, scroll-up preservation, jump to latest, late layout and resize',passed:true});
   await js('Array.from(document.querySelectorAll(".history-item")).find(b=>b.title.startsWith("Review the project")).click()'); await delay(90);
   assert.equal(await js('Boolean(document.querySelector(".detail-panel"))'), false);
   await draft('Follow up on this project'); await click('Send');
@@ -87,6 +112,21 @@ app.whenReady().then(async () => {
   await js(`document.querySelector('[aria-label="Close project files"]').click()`); await delay(90);
   await click('Review 1 change'); assert.equal(calls.filter(c => c.method === 'reviewChange').length, 0);
   assert.match(await js('document.querySelector(".change-preview").textContent'), /Choose a project/);
+  const applyDisabled=()=>js('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.trim()==="Apply change").disabled');
+  state.activeTask='task1'; state.tasks[0].status='running';emit();await delay(90);
+  assert.equal(await applyDisabled(),true);
+  assert.match(await js('document.querySelector(".review-lock").textContent'),/still preparing changes/);
+  await shot('review-while-running');
+  await click('Stop and review'); assert.equal(await applyDisabled(),true,'Keep approval locked while cancellation drains');
+  await delay(220);assert.equal(await applyDisabled(),false,'Stop unlocks approval without reopening the task');
+  assert.equal(calls.filter(c=>c.method==='reviewChange').length,0,'Stopping must not apply proposals');
+  await click('Apply change');assert.equal(state.tasks[0].proposals[0].status,'applied');
+  state.tasks[0].proposals[0].status='pending';state.tasks[0].status='awaiting_review';state.activeChat='chat1';emit();await delay(90);
+  assert.equal(await applyDisabled(),false,'Read-only chat must not block file review');
+  state.activeChat=null;state.activeTask='another-task';emit();await delay(90);
+  assert.equal(await applyDisabled(),true);assert.match(await js('document.querySelector(".review-lock").textContent'),/Another project task/);
+  state.activeTask=null;emit();await delay(90);
+  report.push({check:'review lock reason, Stop and review, apply after cancellation, chat does not block approval',passed:true});
   await shot('dark-review'); await click('Helpers'); assert.match(await js('document.querySelector(".detail-scroll").textContent'), /one at a time/);
   await js('Array.from(document.querySelectorAll(".detail-panel .tabs button")).find(b=>b.textContent.startsWith("Changes")).click()'); await delay(90);
   win.setSize(1000, 680); await delay(150); assert.equal(await js('Boolean(document.querySelector("dialog[open]"))'), true);
@@ -110,10 +150,11 @@ app.whenReady().then(async () => {
       report.push({ theme, connected, ...result });
     }
     win.setSize(1440, 900); await delay(100); await shot(theme + '-workspace');
-    await click('Settings'); await js('document.querySelector(".appearance").scrollIntoView()'); await delay(90); await shot(theme + '-appearance');
+    await click('Settings'); await click('Appearance'); await js('document.querySelector(".appearance").scrollIntoView()'); await delay(90); await shot(theme + '-appearance');
     await click('← Workspace'); win.setSize(1000, 680); await delay(100);
   }
   await click('Settings');
+  await click('Appearance');
   await js('document.querySelector(".theme-light").click()'); await delay(90); assert.equal(state.settings.theme, 'light');
   await js('document.querySelector(".theme-glass").click()'); await delay(90); assert.equal(state.settings.theme, 'glass');
   await js(`document.querySelector('[aria-label="Reduce transparency"]').click()`); await delay(90);

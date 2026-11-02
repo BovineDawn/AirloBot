@@ -80,3 +80,43 @@ v0.6.0: Bundled authenticated llama.cpp, direct GGUF registration, persistent
 project conversations, paged file browsing, reviewed folders and targeted edits,
 and conflict-aware undo. Native binaries live only in ignored native/ and release/.
 Run scripts/focus-ui-test.cjs with Electron for synthetic renderer checks.
+
+v0.7.0: Optional in-memory hardware snapshots, conservative model-fit labels,
+bounded remote GGUF metadata previews, and a simpler download chooser.
+Run the new synthetic UI checks after building:
+  npx --no-install electron scripts/library-ui-test.cjs
+Optional hardware smoke test (prints only validation outcomes):
+  node scripts/hardware-live-test.mjs
+Add --hub only when explicitly testing a small public model download. All live
+test state remains in ignored test-results. Never commit real device reports.
+Snapshots must remain outside persisted app state and outbound Hub requests.
+
+v0.8.0: Catalog popularity/update/file-size metrics, page-level memory comparison,
+visible device guidance, checked variant suggestions, and Settings category panels.
+The library UI test covers category draft retention and all three themes; captures
+force a repaint before saving. All fixtures and product images remain synthetic.
+
+v0.8.1: Project creation recovery, grounded continuation context, pending folder
+support across turns, actionable directory/missing-file reads, and chat following.
+Run npm run test:project-build -- <local-GGUF-path> for a natural-language folder
+then Python GUI calculator request. It uses an isolated offline service, verifies
+that the model does not write, then explicitly applies disposable test proposals.
+It tests file creation, not generated code quality. Review generated source before
+running it; Python GUI execution and arithmetic checks are separate acceptance steps.
+The Focus renderer test covers streaming, scroll-up preservation, Jump to latest,
+late layout and resizing. Runtime state and generated examples stay in test-results.
+
+0.8.1 acceptance (Windows, 2026-11-01): 59 unit tests and the Focus renderer suite
+passed. A local Gemma run completed the exact natural-language folder/calculator
+sequence with real proposals and explicit reviewed writes. The generated calculator
+needed agent follow-ups to fix a Tkinter startup error; the repaired program passed
+button-driven arithmetic, decimal, precedence, clear, zero-division, grid overlap,
+and AST-call rejection checks. Generated-code correctness is still model-dependent.
+The packaged ASAR was checked against source and audited for excluded runtime data.
+
+v0.8.2: Explain review locks and offer Stop and review; stopping waits until the
+agent releases the file-review lock. Duplicate proposals and unchanged read loops
+with pending changes yield to review without replacing drafts or writing files.
+Directory tool results identify pending changes separately from actual disk files.
+Regression coverage includes delayed cancellation followed by approval, duplicate
+draft preservation, repeated reads, and approval while a read-only chat is active.

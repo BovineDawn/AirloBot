@@ -9,10 +9,14 @@ import { chatContext, validResponseLimit } from './chat-context.mjs';
 import { DEFAULT_TASK_BUDGET, TaskLimitError, validTaskTurns, validTaskMinutes } from './task-budget.mjs';
 import { LocalRuntime } from './runtime.mjs';
 import { inspectModel, discoverModelFiles } from './model-files.mjs';
+import { scanHardware } from './hardware.mjs';
+import { previewGGUF } from './model-preview.mjs';
+import { quantizationName } from '../shared/model-compatibility.mjs';
+import { catalogMetrics } from '../shared/model-catalog.mjs';
 
 export const DEFAULT_SETTINGS = {
   model: '', temperature: 0.65, maxTokens: -1, offline: true, contextTokens: 16384, acceleration: 'auto',
-  theme: 'dark', glassIntensity: 60, reducedMotion: false, reducedTransparency: false,
+  theme: 'dark', glassIntensity: 60, reducedMotion: false, reducedTransparency: false, hardwareRecommendations: false,
   taskMaxTurns: DEFAULT_TASK_BUDGET.maxTurns, taskMaxMinutes: DEFAULT_TASK_BUDGET.maxMinutes,
   systemPrompt: 'You are AirloBot, a helpful assistant running locally on this computer. Be clear, practical, and honest about uncertainty. You have no web access or computer tools. Do not claim to perform actions you cannot perform.'
 };
@@ -79,6 +83,7 @@ export class AirloService {
     this.state = { version: 4, settings: { ...DEFAULT_SETTINGS }, models: [], conversations: [], downloads: [], project: null, tasks: [], workspace: { selected: 'new:task', sidebarCollapsed: false, drafts: {} } };
     this.downloadJobs = new Map(); this.activeChat = null; this.saveChain = Promise.resolve();
     this.activeTask = null; this.agentPromise = null; this.chatPromise = null; this.reviewing = false;
+    this.hardwareProfile = null; this.hardwareScan = null; this.previewCache = new Map(); this.previewRequests = new Set();
   }
   async init() {
     await fs.mkdir(this.modelDir, { recursive: true });
@@ -90,6 +95,7 @@ export class AirloService {
       await fs.copyFile(path.join(this.dataDir, 'state.json'), path.join(backups, 'state-before-standalone-v4.json'), 1).catch(e => { if (!['EEXIST', 'ENOENT'].includes(e.code)) throw e; });
     }
     this.state.settings = { ...DEFAULT_SETTINGS, ...this.state.settings };
+    this.state.settings.hardwareRecommendations = this.state.settings.hardwareRecommendations === true;
     this.state.version = 4;
     this.state.models ||= [];
     // Retain custom caps; the former stock cap truncated ordinary answers.
@@ -130,7 +136,7 @@ export class AirloService {
     }
     await this.save(); return this.snapshot();
   }
-  snapshot() { return structuredClone({ ...this.state, dataDir: this.dataDir, modelDir: this.modelDir, endpoint: 'Bundled llama.cpp · local only', activeChat: this.activeChat?.conversationId || null, activeTask: this.activeTask?.id || null, reviewing: this.reviewing }); }
+  snapshot() { return structuredClone({ ...this.state, hardwareProfile: this.state.settings.hardwareRecommendations ? this.hardwareProfile : null, hardwareScanning: !!this.hardwareScan, dataDir: this.dataDir, modelDir: this.modelDir, endpoint: 'Bundled llama.cpp · local only', activeChat: this.activeChat?.conversationId || null, activeTask: this.activeTask?.id || null, reviewing: this.reviewing }); }
   save() {
     const content = JSON.stringify(this.state, null, 2);
     const write = async () => {
@@ -152,6 +158,7 @@ export class AirloService {
     if (patch.glassIntensity !== undefined) { if (!Number.isInteger(patch.glassIntensity) || patch.glassIntensity < 20 || patch.glassIntensity > 90) throw new Error('Glass intensity must be 20–90.'); s.glassIntensity = patch.glassIntensity; }
     if (patch.reducedMotion !== undefined) { if (typeof patch.reducedMotion !== 'boolean') throw new Error('Invalid motion setting.'); s.reducedMotion = patch.reducedMotion; }
     if (patch.reducedTransparency !== undefined) { if (typeof patch.reducedTransparency !== 'boolean') throw new Error('Invalid transparency setting.'); s.reducedTransparency = patch.reducedTransparency; }
+    if (patch.hardwareRecommendations !== undefined) { if (typeof patch.hardwareRecommendations !== 'boolean') throw new Error('Invalid hardware preference.'); s.hardwareRecommendations = patch.hardwareRecommendations; }
     if (patch.model !== undefined) { if (typeof patch.model !== 'string' || patch.model.length > 300) throw new Error('Invalid model.'); s.model = patch.model; }
     if (patch.temperature !== undefined) { if (!Number.isFinite(patch.temperature) || patch.temperature < 0 || patch.temperature > 2) throw new Error('Temperature must be between 0 and 2.'); s.temperature = patch.temperature; }
     if (patch.maxTokens !== undefined) { if (!validResponseLimit(patch.maxTokens)) throw new Error('Choose unlimited (-1) or 64–32768 response tokens.'); s.maxTokens = patch.maxTokens; }
@@ -162,9 +169,28 @@ export class AirloService {
       if (typeof patch.offline !== 'boolean') throw new Error('Invalid offline setting.');
       s.offline = patch.offline;
       if (s.offline) for (const job of this.downloadJobs.values()) job.abort();
+      if (s.offline) for (const request of this.previewRequests) request.abort();
     }
     this.state.settings = s;
+    if (!s.hardwareRecommendations) this.clearHardware();
     await this.save(); this.changed(); return this.snapshot();
+  }
+  clearHardware() { this.hardwareProfile = null; this.hardwareScan?.abort(); this.hardwareScan = null; }
+  forgetHardware() { this.clearHardware(); this.changed(); return this.snapshot(); }
+  async scanHardware() {
+    if (!this.state.settings.hardwareRecommendations) throw new Error('Enable hardware recommendations before scanning.');
+    if (this.hardwareScan) throw new Error('A hardware scan is already running.');
+    const controller = new AbortController(); this.hardwareScan = controller; this.changed();
+    try {
+      const result = await (this.options.hardwareScanner || scanHardware)({ runtimeDirectory: this.runtime.directory, modelDirectory: this.modelDir, signal: controller.signal });
+      if (this.hardwareScan === controller && this.state.settings.hardwareRecommendations) this.hardwareProfile = result;
+    } catch (error) { if (!controller.signal.aborted) throw new Error('Hardware scan could not finish. You can still choose models manually.'); }
+    finally { if (this.hardwareScan === controller) this.hardwareScan = null; this.changed(); }
+    return this.snapshot();
+  }
+  async inspectLocalModel(key) {
+    const model = this.state.models.find(m => m.key === key); if (!model) throw new Error('Model not found in the local library.');
+    const details = await inspectModel(model.path); Object.assign(model, details); await this.save(); this.changed(); return this.status();
   }
   async status() {
     const engine = await this.runtime.status();
@@ -313,7 +339,15 @@ export class AirloService {
   async projectRead({ taskId, path: filename, startChar = 0 }) {
     return (await ProjectFiles.open(this.projectFor(taskId).path)).read(filename, 1, 200, startChar);
   }
-  stopTask(id) { if (id !== this.activeTask?.id) throw new Error('That task is not running.'); this.activeTask.controller.abort(); }
+  async stopTask(id) {
+    if (!this.activeTask && this.state.tasks.some(t => t.id === id && t.status !== 'running')) return this.snapshot();
+    if (id !== this.activeTask?.id) throw new Error('That task is not running.');
+    const finished = this.agentPromise;
+    this.activeTask.controller.abort();
+    // Do not report Stop as complete until generation has released the review lock.
+    await finished;
+    return this.snapshot();
+  }
   async deleteTask(id) {
     if (typeof id !== 'string' || !this.state.tasks.some(t => t.id === id)) throw new Error('Task not found.');
     if (this.activeTask?.id === id || this.reviewing) throw new Error('Stop this task and finish the file review before deleting it.');
@@ -351,22 +385,45 @@ export class AirloService {
   async searchModels(query) {
     this.requireOnline();
     if (typeof query !== 'string' || query.length > 150) throw new Error('Search is too long.');
-    const url = `https://huggingface.co/api/models?search=${encodeURIComponent(query.trim())}&filter=gguf&sort=downloads&direction=-1&limit=18`;
+    const url = `https://huggingface.co/api/models?search=${encodeURIComponent(query.trim())}&filter=gguf&sort=downloads&direction=-1&limit=18&full=true`;
     const data = await (await hubFetch(url, { signal: AbortSignal.timeout(20000) })).json();
-    return data.map(m => ({ id: m.id, downloads: m.downloads, likes: m.likes, gated: m.gated, tags: m.tags || [] }));
+    return data.slice(0, 18).map(m => ({ id: m.id, ...catalogMetrics(m), gated: !!m.gated }));
   }
   async modelFiles(repo) {
     this.requireOnline(); validateRepo(repo);
     const data = await (await hubFetch(`https://huggingface.co/api/models/${repo}?blobs=true`, { signal: AbortSignal.timeout(20000) })).json();
-    return { repo: data.id, revision: data.sha, license: data.cardData?.license || (data.tags || []).find(t => t.startsWith('license:'))?.slice(8) || 'See model card',
-      files: (data.siblings || []).filter(f => /\.gguf$/i.test(f.rfilename)).map(f => ({ name: f.rfilename, size: f.size || f.lfs?.size || 0, sha256: f.lfs?.sha256 || null, projector: /mmproj/i.test(f.rfilename), split: /-\d{5}-of-\d{5}\.gguf$/i.test(f.rfilename) })) };
+    return { repo: data.id, revision: data.sha, ...catalogMetrics(data), license: data.cardData?.license || (data.tags || []).find(t => t.startsWith('license:'))?.slice(8) || 'See model card',
+      files: (data.siblings || []).filter(f => /\.gguf$/i.test(f.rfilename)).map(f => ({ name: f.rfilename, quantization: quantizationName(f.rfilename), size: f.size || f.lfs?.size || 0, sha256: f.lfs?.sha256 || null, projector: /mmproj/i.test(f.rfilename), split: /-\d{5}-of-\d{5}\.gguf$/i.test(f.rfilename) })) };
   }
-  async startDownload({ repo, filename }) {
+  async previewModel({ repo, filename, revision }) {
+    this.requireOnline(); safeModelPath(this.modelDir, repo, filename);
+    if (typeof revision !== 'string' || !/^[a-f0-9]{40,64}$/i.test(revision)) throw new Error('Refresh this repository before checking a file.');
+    const key = [repo, revision, filename].join('|');
+    if (this.previewCache.has(key)) return this.previewCache.get(key);
+    if (this.previewRequests.size >= 2) throw new Error('Wait for the current model check to finish.');
+    const controller = new AbortController(); this.previewRequests.add(controller);
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]);
+    try {
+      const info = await this.modelFiles(repo); if (info.revision !== revision) throw new Error('This repository changed. Refresh it before continuing.');
+      const file = info.files.find(f => f.name === filename); if (!file || !file.size || file.split || file.projector) return { metadataError: 'unavailable' };
+      const url = `https://huggingface.co/${repo}/resolve/${revision}/${filename.split('/').map(encodeURIComponent).join('/')}`;
+      const result = await previewGGUF(url, file.size, hubFetch, signal);
+      if (this.previewCache.size >= 24) this.previewCache.delete(this.previewCache.keys().next().value);
+      if (result.metadataError !== 'unavailable') this.previewCache.set(key, result);
+      return result;
+    } finally { this.previewRequests.delete(controller); }
+  }
+  async startDownload({ repo, filename, revision }) {
     this.requireOnline(); safeModelPath(this.modelDir, repo, filename);
     if (this.downloadJobs.size) throw new Error('Pause the current download or wait for it to finish.');
     const existing = this.state.downloads.find(d => d.repo === repo && d.filename === filename);
-    if (existing) { if (existing.status === 'complete') throw new Error('This model is already downloaded.'); return this.resumeDownload(existing.id); }
+    if (existing) {
+      if (existing.status === 'complete') throw new Error('This model is already downloaded.');
+      if (revision !== undefined && revision !== existing.revision) throw new Error('An earlier revision is already in Downloads. Resume that pinned download there.');
+      return this.resumeDownload(existing.id);
+    }
     const info = await this.modelFiles(repo); const file = info.files.find(f => f.name === filename);
+    if (revision !== undefined && revision !== info.revision) throw new Error('This repository changed. Refresh it before downloading.');
     if (!file || !file.size || !file.sha256) throw new Error('This file lacks verifiable size/SHA-256 metadata.');
     if (file.split) throw new Error('Split GGUF downloads are not supported in this first version. Choose a single-file quantization.');
     const d = { id: randomUUID(), repo, filename, revision: info.revision, size: file.size, sha256: file.sha256, received: 0, status: 'paused', createdAt: now(), projector: file.projector };
@@ -442,5 +499,5 @@ export class AirloService {
     await this.registerModel(safeModelPath(this.modelDir, d.repo, d.filename));
     d.imported = true; d.importError = null; await this.save(); this.changed();
   }
-  async shutdown() { this.stopChat(); this.activeTask?.controller.abort(); for (const job of this.downloadJobs.values()) job.abort(); await this.runtime.stop(); await Promise.all([this.agentPromise, this.chatPromise]); await this.save(); }
+  async shutdown() { this.clearHardware(); for (const request of this.previewRequests) request.abort(); this.stopChat(); this.activeTask?.controller.abort(); for (const job of this.downloadJobs.values()) job.abort(); await this.runtime.stop(); await Promise.all([this.agentPromise, this.chatPromise]); await this.save(); }
 }

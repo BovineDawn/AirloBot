@@ -1,0 +1,15 @@
+import React from 'react';
+import { Cpu, RefreshCw, ShieldCheck } from 'lucide-react';
+import { api, Spinner } from './ui.jsx';
+export const memorySize = bytes => Number.isFinite(bytes) ? `${(bytes / 1024 ** 3).toFixed(1)} GiB` : 'Unknown';
+
+export default function HardwareSettings({ state, busy, attempt, notify }) {
+  const enabled = !!state.settings.hardwareRecommendations, profile = state.hardwareProfile;
+  return <div className="hardware-settings">
+    <label className="hardware-opt-in"><input type="checkbox" checked={enabled} disabled={!!busy} onChange={e => attempt('hardware-preference', () => api.settings({ hardwareRecommendations: e.target.checked }))}/><span><strong>Use my hardware for model recommendations</strong><small>Optional. Scans only when you choose Scan now. Results stay in memory on this device and clear when AirloBot closes.</small></span></label>
+    {enabled && <><div className="hardware-actions"><button className="button secondary" disabled={!!busy || state.hardwareScanning} onClick={() => api.scanHardware().catch(() => notify('Hardware scan could not finish. Try again or choose models manually.'))}>{state.hardwareScanning ? <Spinner/> : <RefreshCw size={14}/>} {state.hardwareScanning ? 'Scanning…' : profile ? 'Refresh scan' : 'Scan now'}</button>{(profile || state.hardwareScanning) && <button className="text-button" onClick={() => api.forgetHardware().catch(() => notify('Could not clear the hardware snapshot.'))}>Forget results</button>}</div>
+      {profile ? <><dl className="hardware-summary"><div><dt><Cpu size={14}/>Processor</dt><dd>{profile.cpu.name}<small>{profile.cpu.threads} logical processors · {profile.cpu.architecture}</small></dd></div><div><dt>System memory</dt><dd>{memorySize(profile.memory.available)} available<small>{memorySize(profile.memory.total)} installed</small></dd></div>{profile.gpus.map((gpu, i) => <div key={i}><dt>{gpu.backend} graphics</dt><dd>{gpu.name}<small>{memorySize(gpu.available)} available / {memorySize(gpu.total)} reported{gpu.shared === true ? ' · Shared with system RAM' : gpu.shared === false ? ' · Dedicated memory' : ' · Memory type unconfirmed'}</small></dd></div>)}{!profile.gpus.length && <div><dt>Graphics</dt><dd>{profile.gpuStatus === 'none' ? 'No supported GPU detected' : 'GPU information unavailable'}<small>{profile.gpuStatus === 'engine_missing' ? 'Install the bundled engine, then scan again.' : 'You can still select a model manually.'}</small></dd></div>}<div><dt>Library storage</dt><dd>{profile.disk ? `${memorySize(profile.disk.available)} free` : 'Unavailable'}</dd></div></dl><p className="small muted">Scanned {new Date(profile.scannedAt).toLocaleTimeString()}. Refresh before comparing models; estimates expire after 15 minutes. Other apps and loaded models use memory too.</p></> : <p className="small muted">No device snapshot. Scanning does not load a model or examine personal files.</p>}
+    </>}
+    <p className="hardware-privacy"><ShieldCheck size={14}/>Hardware details are never sent to Hugging Face, written to logs, or saved in conversations.</p>
+  </div>;
+}

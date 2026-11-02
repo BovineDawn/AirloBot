@@ -1,6 +1,6 @@
 # AirloBot user guide
 
-AirloBot 0.6 is a standalone Windows desktop preview. See the [README](../README.md#get-started) for installation.
+AirloBot 0.8.2 is a standalone Windows desktop preview. See the [README](../README.md#get-started) for installation.
 
 ## Local engine and models
 
@@ -14,9 +14,29 @@ GGUF files stay in their original location, including on another drive. Already-
 
 The existing Gemma 4 E4B model is a compatibility target. Other models require supported architectures/templates; agents also need reliable tool calling. Downloading a model does not guarantee compatibility or enough available memory.
 
-**Settings → Privacy and local engine** offers context sizes from 4,096 to 65,536 tokens and Auto GPU / CPU acceleration. Default: 16,384 tokens. Project tools require at least 8,192. Higher values use more memory; the model's maximum also applies. Settings take effect at the next load/send. Unload releases memory; normal app shutdown stops the engine.
+**Settings → Models & hardware** offers context sizes from 4,096 to 65,536 tokens and Auto GPU / CPU acceleration. Default: 16,384 tokens. Project tools require at least 8,192. Higher values use more memory; the model's maximum also applies. Settings take effect at the next load/send. Unload releases memory; normal app shutdown stops the engine.
 
 Engine reference: [llama.cpp server](https://github.com/ggml-org/llama.cpp/blob/b11960/tools/server/README.md). Build provenance and the archive checksum are pinned in `scripts/runtime-lock.json`.
+
+## Hardware recommendations and download choices
+
+Under **Settings → Models & hardware**, enable **Use my hardware for model recommendations**, then choose **Scan now**. The same controls are available inside the library's **Device check** panel. The preference is off by default. Enabling it does not scan automatically, including after restarting.
+
+Scanning reads the CPU description and logical processor count, available/total RAM, free storage at the library location, and graphics devices/memory reported by the bundled Vulkan engine. It does not examine personal files, collect device serial numbers, or load a model. No administrator access is required. If the engine or GPU information is unavailable, the app reports that limitation and manual model selection remains available.
+
+Hardware snapshots exist only in app memory. They are not written to state files, logs, conversations, or Git and are never included in network requests. **Forget results**, disabling the preference, or closing AirloBot clears them. The opt-in preference alone is saved locally. Refresh before comparing models: estimates expire after 15 minutes, and other apps or a loaded model affect available memory.
+
+**Find models** offers a balanced starting variant, a smaller download, and a higher-precision option where available. These are filename/quantization-based starting points, not quality rankings. Expand **All versions** for the complete file list. Selecting a file reads only a bounded GGUF metadata header from the same pinned repository revision. Browsing and metadata requests require Offline mode to be off; hardware scanning itself works offline.
+
+Fit labels use file size, context-cache metadata, configured context/acceleration, working-buffer allowance, and memory headroom. They distinguish likely fit, limited headroom, possible CPU use, insufficient disk space, unsupported file formats, and unknown estimates. Shared GPU memory is never added to RAM, and multi-GPU capacity is not summed. Warnings allow manual choice; the download performs its own live free-space check.
+
+The full estimator covers conventional attention caches in the llama, qwen2/qwen3, gemma/gemma2/gemma3, phi3, and mistral metadata families. Other architectures, including Gemma 4, receive limited guidance such as **Weights fit; runtime unverified** or **Weights exceed GPU budget**. These models remain usable if supported by the engine. Fit is not a benchmark or proof of tool-calling quality. For already-registered models without detailed metadata, use **Check model requirements** beside the model. Installed files are read locally without copying or changing their weights.
+
+The library shows a rough starting file-size target and a clear setup action when recommendations are off or a fresh scan is needed. Search results display monthly repository downloads, community likes, the latest repository update date, and the size range of supported individual GGUFs. A repository can contain many versions; its total storage is not the download size. Missing data is labeled unavailable, not zero.
+
+Results appear six at a time. **Compare memory fit** checks a starting version for each model on the current page using bounded header previews. **Stop comparison**, changing pages, or leaving the results stops queuing more checks; an in-flight read may finish. The version chooser checks its short list after a fresh scan and suggests a checked version with comfortable headroom when one is available. No choice is downloaded automatically. Popularity does not measure model quality or speed. Hugging Face documents its [download counting](https://huggingface.co/docs/hub/models-download-stats) and [metadata API](https://huggingface.co/docs/hub/api).
+
+Remote metadata reads are range-only, capped at 16 MiB of header per attempt (under 22 MiB across retries), with time and concurrency limits. Servers that ignore Range, malformed headers, or unsupported layouts produce an unknown estimate. Preview failures do not trigger a full model download. Actual downloads still pin a revision and verify file size and SHA-256 before registration.
 
 ## Project conversations
 
@@ -28,13 +48,19 @@ The progress row describes the current action. **Read local files** lists actual
 
 Helpers use the same local model, separate contexts, and read-only tools. Up to two run sequentially per submitted turn. Their suggestions cannot authorize writes or override user instructions. Models can still make mistakes; inspect the actual proposals.
 
-Follow-ups include recent goals, results, change states, and file references. Up to six recent turns are shortened to fit the context budget; older history remains saved. Files must be read again before editing because prior evidence can become stale.
+Follow-ups include recent goals, results, and recorded change states. Up to six recent turns are shortened to fit the context budget; older history remains saved. Common continuations such as “proceed” retain the last objective, with earlier build/folder instructions pinned separately. Prior model replies are unverified narrative, not evidence that files exist. Files must be read again before editing because prior evidence can become stale.
+
+The conversation follows new text while you are at the bottom. Scroll up to pause following, then choose **Jump to latest** or scroll back to the bottom to resume. Sending a new message also returns to the latest text.
 
 ## Reviewed folders and document edits
 
 Try: “Read README.md, create a docs folder, and write a summary in docs/overview.md.”
 
 Open **Review changes**, inspect paths and before/after text, then choose **Apply change** or **Reject**. Apply folder proposals before dependent files. Approvals target the conversation's original folder even if the picker has since changed. Model tools never apply writes themselves.
+
+If the agent is still working, the review panel explains why approval is locked. **Stop and review** stops generation, keeps all prepared proposals, and unlocks Apply when cancellation finishes. It does not apply anything. Repeating a pending proposal or looping over unchanged files now pauses the agent for review automatically. The original proposal stays intact. A regular Ask chat does not block approval.
+
+The agent can prepare folders and files in one turn; preparing files does not require applying their folder first. Pending folders also remain available for proposals in follow-ups. For recognized creation requests, folder-only results or code pasted into chat trigger up to two recovery requests. If the model still does not prepare the requested artifact, the task reports **Needs attention** with **Continue saved work**. This catches missing proposals, not every defect in generated code; inspect and test code after review.
 
 Targeted edits replace one uniquely matching passage after it has been read. Unrelated text stays unchanged, and CRLF line endings are preserved. Entire replacements require reading the full current file; reading can span multiple pages. Proposals are rejected if the source changed after reading.
 
@@ -53,7 +79,7 @@ Editing supports UTF-8 text, Markdown, and source/configuration files. Word, PDF
 | New/replacement content | 24,000 characters | Use targeted edits for larger existing files. |
 | Proposals | 20 per submitted turn | Every change requires review. |
 
-Stop cancels parent and helper work. Six identical tool exchanges with unchanged results stop a loop. Empty replies receive at most two recovery requests. The latest 500 activity events per turn are kept; results and proposals remain saved.
+Stop cancels parent and helper work. Six identical tool exchanges with unchanged results stop a loop. Empty replies and truncated replies each receive at most two recovery requests. Truncated tool calls are discarded, and the model is asked for smaller complete files. The latest 500 activity events per turn are kept; results and proposals remain saved.
 
 **Continue saved work** submits a follow-up after a stop, failure, limit, or restart using saved findings. It does not restore an exact in-flight model execution or replay writes. Interrupted writes are marked uncertain for inspection.
 
@@ -102,6 +128,8 @@ Runtime data, model weights, native binaries, logs, backups, and private capture
 | Windows blocks a binary | Use your normal Windows/admin approval process; do not disable Windows protection. |
 
 ## Packaging and preferences
+
+Settings uses category panels: **Responses**, **Project tasks**, **Models & hardware**, **Privacy & storage**, and **Appearance**. Only one section is shown at a time. Switching categories preserves unsaved response edits and marks that category with a dot; use Save response preferences to keep them. Other controls save automatically as labeled.
 
 Run `npm run runtime:install`, then `npm run package`. Output: `release/standalone/AirloBot-win32-x64`, including engine licenses. Keep the entire folder together. Builds are unsigned, with no automatic updater. The existing launcher prefers `release/AirloBot-win32-x64`; deploy a reviewed build there or use source mode in a checkout without that installation.
 

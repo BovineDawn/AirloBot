@@ -46,6 +46,7 @@ export class ProjectFiles {
   async text(relative) {
     const file = await this.resolve(relative);
     const initial = await fs.lstat(file);
+    if (initial.isDirectory()) throw Object.assign(new Error('This path is a directory. Use list_files to see its contents.'), { code: 'EISDIR' });
     if (!initial.isFile() || initial.size > 1048576) throw new Error('Only UTF-8 text files up to 1 MiB can be read. Word, PDF, and other binary formats need a text export.');
     const handle = await fs.open(file, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
     try {

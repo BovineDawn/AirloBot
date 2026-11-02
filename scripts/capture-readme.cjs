@@ -33,10 +33,11 @@ async function click(label) {
   await delay(100);
 }
 async function capture(name) {
+  win.webContents.invalidate();
   await js('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
   await delay(180);
   assert.equal(await js('document.documentElement.scrollWidth > innerWidth'), false);
-  await fs.writeFile(path.join(output, name), (await win.webContents.capturePage()).toPNG());
+  await fs.writeFile(path.join(output, name), (await win.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true })).toPNG());
 }
 app.whenReady().then(async () => {
   await fs.mkdir(scratch, { recursive: true }); await fs.mkdir(output, { recursive: true });
@@ -83,13 +84,68 @@ app.whenReady().then(async () => {
   await capture('workspace-glass.png');
   state.settings.theme = 'dark'; changed(); await delay(100); await click('Review 1 change');
   await capture('review-dark.png');
+  const reviewResult = task.result;
+  state.activeTask = task.id; task.status = 'running'; task.result = '';
+  task.currentAction = { tool: 'read_file', path: 'README.md' }; changed(); await delay(100);
+  assert.equal(await js('Boolean(document.querySelector(".review-lock"))'), true);
+  await capture('review-in-progress.png');
+  state.activeTask = null; task.status = 'awaiting_review'; task.result = reviewResult;
+  const reply = state.conversations[0].messages[1];
+  reply.content = `A useful first version needs only a few things: a place to write, a way to find a note, and a clear indication that your work is saved.
+
+### Start with the writing view
+
+Keep a short list of note titles beside a comfortable editor. Give the selected note a visible title and let the writing area take most of the window.
+
+- Create a note with one obvious button.
+- Keep formatting controls close to the editor.
+- Show a quiet saved indicator after each change.
+- Preserve an unfinished draft when switching notes.
+
+### Keep files easy to understand
+
+Store each note as a Markdown file inside the chosen project folder. A simple format makes it easy to open your work in another editor or back it up yourself.
+
+Use readable filenames, and check for an existing file before creating a new one. Renaming a title should never silently overwrite another note.
+
+### Add search when the basics work
+
+Search titles and note text together. Show a short matching passage so you can choose the right result without opening every file.
+
+- Update results as the query changes.
+- Keep the current note open while searching.
+- Provide a clear empty state when nothing matches.
+- Clear the query without losing the editing position.
+
+### Make the small interactions reliable
+
+Test creating a note, editing it, switching away, and returning. Close and reopen the app to confirm that the text is still there.
+
+Keyboard navigation should reach the note list, search field, and editor in a predictable order. Visible focus indicators help people keep track of where they are.
+
+### Review changes before expanding the scope
+
+Build the smallest working version first. Then review how saving, renaming, and deletion behave before adding tags, attachments, or additional windows.
+
+Keep backups local and explain where the files live. Deletion should be a deliberate action with a chance to cancel.
+
+### A practical next step
+
+Choose the project folder, create the basic window, and test the writing-and-saving loop with a few sample notes. Add search after that workflow feels dependable.`;
+  reply.status = 'streaming'; state.activeChat = 'demo-chat'; changed();
+  await js('[...document.querySelectorAll(".history-item")].find(b=>b.title==="Plan a personal notes app").click()'); await delay(180);
+  await js('(()=>{const n=document.querySelector(".transcript-scroll");n.scrollTop=130;n.dispatchEvent(new Event("scroll"));})()'); await delay(100);
+  assert.equal(await js('Boolean(document.querySelector(".jump-latest"))'), true);
+  await capture('chat-follow-scroll.png');
+  reply.status = 'complete'; state.activeChat = null; changed();
   await click('Model library'); state.settings.theme = 'light'; changed(); await delay(100);
   await capture('library-light.png');
   await click('Settings'); state.settings.theme = 'glass'; changed(); await delay(100);
+  await click('Appearance');
   win.setContentSize(1440, 760); await delay(100);
   await js('document.querySelector(".appearance").scrollIntoView()');
   await capture('appearance-glass.png');
   assert.deepEqual(remoteRequests, []); assert.deepEqual(failures, []);
-  console.log('Captured four production UI screenshots with synthetic content only. No model or network requests.');
+  console.log('Captured six production UI screenshots with synthetic content only. No model or network requests.');
   app.quit();
 }).catch(error => { console.error(error); app.exit(1); });

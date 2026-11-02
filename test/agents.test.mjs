@@ -94,6 +94,48 @@ test('cancelling a helper cancels its parent and releases the local generation s
   assert.ok(service.state.tasks[0].agents.every(a => a.status === 'cancelled'));
 });
 
+test('duplicate proposals hand off for review without replacing drafts or blocking approval', async t => {
+  const sequence = [call('propose_file',{path:'new.txt',content:'Reviewed original',reason:'Create document'}),call('list_files',{directory:'.'}),call('propose_file',{path:'new.txt',content:'Unreviewed revision',reason:'Duplicate attempt'})];
+  const {service,project} = await fixture(t,{agentRequest:async body=>{
+    if(sequence.length===1) assert.match(body.messages.at(-1).content,/pending_changes.*new.txt/);
+    assert.ok(sequence.length,'Agent should stop instead of retrying duplicates'); return sequence.shift();
+  }});
+  const id=await service.startTask({goal:'Create new.txt in the project.'}); await service.agentPromise;
+  const task=service.state.tasks[0];
+  assert.equal(task.status,'awaiting_review');assert.equal(task.reviewPaused,true);assert.equal(service.activeTask,null);
+  assert.equal(task.proposals.length,1);assert.equal(task.proposals[0].after,'Reviewed original');
+  assert.ok(!Object.keys(task.unresolvedErrors || {}).length);
+  await assert.rejects(fs.stat(path.join(project,'new.txt')),{code:'ENOENT'});
+  await service.reviewChange({taskId:id,proposalId:task.proposals[0].id,decision:'apply'});
+  assert.equal(await fs.readFile(path.join(project,'new.txt'),'utf8'),'Reviewed original');
+});
+
+test('Stop waits for cancellation to finish, then proposals can be approved without restarting', async t => {
+  let ready, release;const started=new Promise(r=>{ready=r}), drain=new Promise(r=>{release=r});let turn=0;
+  const {service,project}=await fixture(t,{agentRequest:async (_body,signal)=>{
+    if(!turn++) return call('propose_file',{path:'new.txt',content:'Pending work',reason:'Create document'});
+    return new Promise((_resolve,reject)=>{signal.addEventListener('abort',()=>{drain.then(()=>reject(signal.reason));},{once:true});ready();});
+  }});
+  const id=await service.startTask({goal:'Create new.txt.'});await started;
+  const proposal=service.state.tasks[0].proposals[0];let settled=false;
+  const stopping=service.stopTask(id).then(snapshot=>{settled=true;return snapshot;});
+  await assert.rejects(service.reviewChange({taskId:id,proposalId:proposal.id,decision:'apply'}),/Wait/);
+  assert.equal(settled,false);assert.equal(service.snapshot().activeTask,id);
+  release();assert.equal((await stopping).activeTask,null);assert.equal(proposal.status,'pending');
+  await assert.rejects(fs.stat(path.join(project,'new.txt')),{code:'ENOENT'});
+  await service.reviewChange({taskId:id,proposalId:proposal.id,decision:'apply'});
+  assert.equal(await fs.readFile(path.join(project,'new.txt'),'utf8'),'Pending work');
+  assert.equal((await service.stopTask(id)).activeTask,null,'Completion race is harmless');
+});
+
+test('unchanged read loops with pending files yield to review', async t=>{
+  let turn=0;
+  const {service}=await fixture(t,{agentRequest:async()=> !turn++ ? call('propose_file',{path:'new.txt',content:'Draft',reason:'Create document'}) : call('list_files',{directory:'.'})});
+  await service.startTask({goal:'Create new.txt.'});await service.agentPromise;
+  assert.equal(service.state.tasks[0].status,'awaiting_review');assert.equal(service.state.tasks[0].turns,7);
+  assert.equal(service.activeTask,null);assert.equal(service.state.tasks[0].proposals[0].status,'pending');
+});
+
 test('restart marks unfinished work and uncertain writes without replaying actions', async t => {
   const { service } = await fixture(t);
   const task = makeTask('Old task', service.state.project, service.state.settings.model);
