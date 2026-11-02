@@ -92,6 +92,19 @@ For build requests, the agent can prepare a folder and its source files together
 
 ![Dark theme with a proposed file change, readable diff, and explicit Apply and Reject controls](docs/media/review-dark.png)
 
+If the agent is still working, **Stop and review** keeps the prepared changes and unlocks approval once generation stops. Duplicate-proposal loops also return control for review automatically.
+
+<details>
+<summary><strong>See review and conversation controls</strong></summary>
+
+![Review panel explaining why approval is locked, with Stop and review available](docs/media/review-in-progress.png)
+
+Chats follow new text automatically. Scroll up to read earlier messages without being pulled away, then choose **Jump to latest** to resume following.
+
+![A sample conversation with Jump to latest available while reading earlier text](docs/media/chat-follow-scroll.png)
+
+</details>
+
 ### Bring your own local models
 
 Add an existing GGUF or find a public model on Hugging Face. AirloBot loads files directly and verifies downloads before adding them to the library. The library currently supports public, ungated, single-file GGUF models.
@@ -107,6 +120,15 @@ Search results show monthly repository downloads, community likes, the repositor
 ![Model download choices with a local memory-fit estimate, using synthetic model and hardware data](docs/media/library-downloads.png)
 
 ![Light theme showing the local model library and model selection controls](docs/media/library-light.png)
+
+<details>
+<summary><strong>See model and hardware settings</strong></summary>
+
+Settings uses category panels, keeping engine controls and optional hardware guidance together in **Models & hardware**.
+
+![Models and hardware settings in Liquid Glass with local engine controls and optional hardware guidance](docs/media/settings-models.png)
+
+</details>
 
 <details>
 <summary><strong>Preview the appearance options</strong></summary>
@@ -129,7 +151,7 @@ The bundled engine has remote access, built-in agent tools, request logging, and
 
 ## Current scope
 
-AirloBot 0.8 supports local text chat, persistent project conversations, folder creation, and reviewed UTF-8 text/Markdown/source edits up to 1 MiB. Helpers run sequentially, with up to two helpers per turn. New turns default to **100 shared model turns and 60 minutes**, both configurable. Word/PDF editing, terminal commands, project test execution, and autonomous writes are not available.
+AirloBot 0.8.2 supports local text chat, persistent project conversations, folder creation, and reviewed UTF-8 text/Markdown/source edits up to 1 MiB. Helpers run sequentially, with up to two helpers per turn. New turns default to **100 shared model turns and 60 minutes**, both configurable. Word/PDF editing, terminal commands, project test execution, and autonomous writes are not available.
 
 The app is tested on Windows. CI checks the service and production build on Windows and Linux; this does not imply a supported Linux desktop release. See the [user guide](docs/USER_GUIDE.md) for model requirements, exact limits, and troubleshooting.
 

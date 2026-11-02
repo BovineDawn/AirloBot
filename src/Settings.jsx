@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Check, FolderOpen, Moon, ShieldCheck, Sparkles, Sun } from 'lucide-react';
 import { api, Toggle } from './ui.jsx';
 import HardwareSettings from './HardwareSettings.jsx';
+import { version } from '../package.json';
 
 export default function Settings({ state, status, busy, attempt, refresh, notify }) {
   const s = state.settings;
@@ -43,6 +44,6 @@ export default function Settings({ state, status, busy, attempt, refresh, notify
       <div className="setting-row"><span><strong>Reduce motion</strong><small>System motion preferences are respected too.</small></span><Toggle label="Reduced motion" checked={s.reducedMotion} disabled={!!busy} onChange={reducedMotion => save({ reducedMotion })}/></div>
     </section>
     </div></div>
-    <p className="about">AirloBot 0.8 · Local models, reviewed actions.</p>
+    <p className="about">AirloBot {version} · Local models, reviewed actions.</p>
   </div>;
 }
